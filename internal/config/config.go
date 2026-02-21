@@ -36,7 +36,6 @@ func (c *Config) GetClientID(accountName string) string {
 var (
 	configDir  string
 	configFile string
-	tokenDir   string
 	dataDir    string
 )
 
@@ -48,7 +47,6 @@ func init() {
 	}
 	configDir = filepath.Join(xdgConfig, "md365")
 	configFile = filepath.Join(configDir, "config.yaml")
-	tokenDir = filepath.Join(configDir, "tokens")
 
 	// Set up data directory
 	xdgData := os.Getenv("XDG_DATA_HOME")
@@ -110,11 +108,6 @@ func expandTilde(path string) string {
 // GetConfigDir returns the configuration directory path
 func GetConfigDir() string {
 	return configDir
-}
-
-// GetTokenDir returns the token directory path
-func GetTokenDir() string {
-	return tokenDir
 }
 
 // GetDataDir returns the default data directory path

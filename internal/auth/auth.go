@@ -51,9 +51,7 @@ type TokenResponse struct {
 
 // GetAccessToken returns a valid access token for the account, refreshing if needed
 func GetAccessToken(cfg *config.Config, account string) (string, error) {
-	tokenFile := getTokenPath(account)
-
-	token, err := loadToken(tokenFile)
+	token, err := loadToken(account)
 	if err != nil {
 		return "", fmt.Errorf("no token found for account '%s'. Run: md365 auth login --account %s", account, account)
 	}
@@ -65,7 +63,7 @@ func GetAccessToken(cfg *config.Config, account string) (string, error) {
 			return "", fmt.Errorf("failed to refresh token: %w", err)
 		}
 		// Reload token after refresh
-		token, err = loadToken(tokenFile)
+		token, err = loadToken(account)
 		if err != nil {
 			return "", err
 		}
@@ -76,9 +74,7 @@ func GetAccessToken(cfg *config.Config, account string) (string, error) {
 
 // RefreshToken refreshes the access token for an account
 func RefreshToken(cfg *config.Config, account string) error {
-	tokenFile := getTokenPath(account)
-
-	token, err := loadToken(tokenFile)
+	token, err := loadToken(account)
 	if err != nil {
 		return fmt.Errorf("no token found for account '%s'", account)
 	}
@@ -118,7 +114,7 @@ func RefreshToken(cfg *config.Config, account string) error {
 		Scope:        token.Scope,
 	}
 
-	if err := saveToken(tokenFile, &newToken); err != nil {
+	if err := saveToken(account, &newToken); err != nil {
 		return fmt.Errorf("failed to save token: %w", err)
 	}
 
@@ -217,8 +213,7 @@ func Login(cfg *config.Config, account string) error {
 				Scope:        acc.Scope,
 			}
 
-			tokenFile := getTokenPath(account)
-			if err := saveToken(tokenFile, &newToken); err != nil {
+			if err := saveToken(account, &newToken); err != nil {
 				return fmt.Errorf("failed to save token: %w", err)
 			}
 
@@ -239,9 +234,7 @@ func Status(cfg *config.Config) {
 	fmt.Println()
 
 	for _, account := range cfg.ListAccounts() {
-		tokenFile := getTokenPath(account)
-
-		token, err := loadToken(tokenFile)
+		token, err := loadToken(account)
 		if err != nil {
 			fmt.Printf("  %s: NOT AUTHENTICATED\n", account)
 			continue
@@ -250,86 +243,40 @@ func Status(cfg *config.Config) {
 		if token.ExpiresOn > time.Now().Unix() {
 			remaining := time.Duration(token.ExpiresOn-time.Now().Unix()) * time.Second
 			hours := int(remaining.Hours())
-
-			// Check storage location
-			source := "keyring"
-			if _, err := keyring.Get(keyringService, account); err != nil {
-				source = "file"
-			}
-
-			fmt.Printf("  %s: Valid (expires in %dh) [%s]\n", account, hours, source)
+			fmt.Printf("  %s: Valid (expires in %dh)\n", account, hours)
 		} else {
 			fmt.Printf("  %s: EXPIRED\n", account)
 		}
 	}
 }
 
-// getTokenPath returns the path to the token file for an account
-func getTokenPath(account string) string {
-	return filepath.Join(config.GetTokenDir(), account+".json")
-}
-
-// loadToken loads a token from keyring, falling back to disk
-func loadToken(path string) (*Token, error) {
-	// Extract account name from path
-	account := strings.TrimSuffix(filepath.Base(path), ".json")
-
-	// Try keyring first
+// loadToken loads a token from keyring
+func loadToken(account string) (*Token, error) {
 	tokenJSON, err := keyring.Get(keyringService, account)
-	if err == nil {
-		var token Token
-		if err := json.Unmarshal([]byte(tokenJSON), &token); err == nil {
-			return &token, nil
-		}
-		// If keyring data is corrupted, fall through to file
-	}
-
-	// Fall back to file
-	data, err := os.ReadFile(path)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("no token in keyring for '%s': %w", account, err)
 	}
 
 	var token Token
-	if err := json.Unmarshal(data, &token); err != nil {
-		return nil, err
+	if err := json.Unmarshal([]byte(tokenJSON), &token); err != nil {
+		return nil, fmt.Errorf("corrupted token in keyring for '%s': %w", account, err)
 	}
 
 	return &token, nil
 }
 
-// saveToken saves a token to keyring, falling back to disk
-func saveToken(path string, token *Token) error {
-	// Extract account name from path
-	account := strings.TrimSuffix(filepath.Base(path), ".json")
-
+// saveToken saves a token to keyring
+func saveToken(account string, token *Token) error {
 	data, err := json.MarshalIndent(token, "", "  ")
 	if err != nil {
 		return err
 	}
 
-	// Try keyring first
-	err = keyring.Set(keyringService, account, string(data))
-	if err == nil {
-		return nil
+	if err := keyring.Set(keyringService, account, string(data)); err != nil {
+		return fmt.Errorf("failed to save token to keyring: %w\n\nEnsure a keyring daemon (e.g. gnome-keyring, kwallet) is running", err)
 	}
 
-	// Fall back to file if keyring is unavailable
-	fmt.Fprintf(os.Stderr, "Warning: keyring unavailable, falling back to file storage: %v\n", err)
-
-	// Ensure directory exists
-	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
-		return err
-	}
-
-	// Write to temp file first
-	tmpPath := path + ".tmp"
-	if err := os.WriteFile(tmpPath, data, 0600); err != nil {
-		return err
-	}
-
-	// Atomic rename
-	return os.Rename(tmpPath, path)
+	return nil
 }
 
 // Slugify converts text to a filename-safe slug
@@ -380,138 +327,7 @@ func GenerateUniqueFilename(dir, baseName, ext string) string {
 	}
 }
 
-// ImportTokens imports tokens from JSON files to keyring
-func ImportTokens(cfg *config.Config, account string) error {
-	tokenDir := config.GetTokenDir()
-
-	// Determine which accounts to import
-	var accounts []string
-	if account == "" || account == "all" {
-		// Import all JSON files in token directory
-		entries, err := os.ReadDir(tokenDir)
-		if err != nil {
-			return fmt.Errorf("failed to read token directory: %w", err)
-		}
-		for _, entry := range entries {
-			if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".json") && !strings.HasSuffix(entry.Name(), ".bak") {
-				acc := strings.TrimSuffix(entry.Name(), ".json")
-				accounts = append(accounts, acc)
-			}
-		}
-	} else {
-		accounts = []string{account}
-	}
-
-	if len(accounts) == 0 {
-		fmt.Println("No token files found to import")
-		return nil
-	}
-
-	imported := 0
-	for _, acc := range accounts {
-		tokenFile := getTokenPath(acc)
-
-		// Check if file exists
-		if _, err := os.Stat(tokenFile); os.IsNotExist(err) {
-			fmt.Fprintf(os.Stderr, "Warning: no token file found for account '%s'\n", acc)
-			continue
-		}
-
-		// Load token from file
-		data, err := os.ReadFile(tokenFile)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Warning: failed to read token file for '%s': %v\n", acc, err)
-			continue
-		}
-
-		// Validate JSON
-		var token Token
-		if err := json.Unmarshal(data, &token); err != nil {
-			fmt.Fprintf(os.Stderr, "Warning: invalid token file for '%s': %v\n", acc, err)
-			continue
-		}
-
-		// Store in keyring
-		if err := keyring.Set(keyringService, acc, string(data)); err != nil {
-			fmt.Fprintf(os.Stderr, "Warning: failed to import '%s' to keyring: %v\n", acc, err)
-			continue
-		}
-
-		// Rename file to .bak
-		bakFile := tokenFile + ".bak"
-		if err := os.Rename(tokenFile, bakFile); err != nil {
-			fmt.Fprintf(os.Stderr, "Warning: imported '%s' but failed to rename file: %v\n", acc, err)
-		} else {
-			fmt.Printf("Imported '%s' to keyring (file renamed to %s)\n", acc, filepath.Base(bakFile))
-			imported++
-		}
-	}
-
-	fmt.Printf("\nSuccessfully imported %d token(s) to keyring\n", imported)
-	return nil
-}
-
-// ExportTokens exports tokens from keyring to JSON files
-func ExportTokens(cfg *config.Config, account string) error {
-	// Determine which accounts to export
-	var accounts []string
-	if account == "" || account == "all" {
-		accounts = cfg.ListAccounts()
-	} else {
-		accounts = []string{account}
-	}
-
-	if len(accounts) == 0 {
-		fmt.Println("No accounts configured")
-		return nil
-	}
-
-	tokenDir := config.GetTokenDir()
-	if err := os.MkdirAll(tokenDir, 0755); err != nil {
-		return fmt.Errorf("failed to create token directory: %w", err)
-	}
-
-	exported := 0
-	for _, acc := range accounts {
-		// Get token from keyring
-		tokenJSON, err := keyring.Get(keyringService, acc)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Warning: no token in keyring for '%s': %v\n", acc, err)
-			continue
-		}
-
-		// Validate JSON
-		var token Token
-		if err := json.Unmarshal([]byte(tokenJSON), &token); err != nil {
-			fmt.Fprintf(os.Stderr, "Warning: invalid token in keyring for '%s': %v\n", acc, err)
-			continue
-		}
-
-		// Write to file
-		tokenFile := getTokenPath(acc)
-		data, err := json.MarshalIndent(&token, "", "  ")
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Warning: failed to marshal token for '%s': %v\n", acc, err)
-			continue
-		}
-
-		// Atomic write
-		tmpPath := tokenFile + ".tmp"
-		if err := os.WriteFile(tmpPath, data, 0600); err != nil {
-			fmt.Fprintf(os.Stderr, "Warning: failed to write token file for '%s': %v\n", acc, err)
-			continue
-		}
-
-		if err := os.Rename(tmpPath, tokenFile); err != nil {
-			fmt.Fprintf(os.Stderr, "Warning: failed to rename token file for '%s': %v\n", acc, err)
-			os.Remove(tmpPath)
-			continue
-		}
-
-		fmt.Printf("Exported '%s' to %s\n", acc, tokenFile)
-		exported++
-	}
-
-	fmt.Printf("\nSuccessfully exported %d token(s) to files\n", exported)
-	return nil
+// DeleteToken removes a token from keyring
+func DeleteToken(account string) error {
+	return keyring.Delete(keyringService, account)
 }
