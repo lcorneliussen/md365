@@ -27,18 +27,31 @@ func WriteEventFile(cfg *config.Config, account string, event *graph.Event) (str
 		return "", fmt.Errorf("failed to create calendar directory: %w", err)
 	}
 
-	// Check if a file with this event ID already exists — update in place
-	filePath := findFileByID(calDir, event.ID)
+	// Generate the desired filename based on current event data
+	startDate := strings.Split(event.Start.DateTime, "T")[0]
+	slug := auth.Slugify(event.Subject, 60)
+	if slug == "" {
+		slug = "untitled"
+	}
+	desiredBase := fmt.Sprintf("%s-%s", startDate, slug)
 
-	if filePath == "" {
-		// New event — generate filename
-		startDate := strings.Split(event.Start.DateTime, "T")[0]
-		slug := auth.Slugify(event.Subject, 60)
-		if slug == "" {
-			slug = "untitled"
+	// Check if a file with this event ID already exists
+	existingPath := findFileByID(calDir, event.ID)
+
+	var filePath string
+	if existingPath != "" {
+		// Check if rename is needed (subject or date changed)
+		existingBase := strings.TrimSuffix(filepath.Base(existingPath), ".md")
+		if existingBase != desiredBase {
+			newFilename := auth.GenerateUniqueFilename(calDir, desiredBase, ".md")
+			filePath = filepath.Join(calDir, newFilename)
+			os.Rename(existingPath, filePath)
+		} else {
+			filePath = existingPath
 		}
-		baseName := fmt.Sprintf("%s-%s", startDate, slug)
-		filename := auth.GenerateUniqueFilename(calDir, baseName, ".md")
+	} else {
+		// New event
+		filename := auth.GenerateUniqueFilename(calDir, desiredBase, ".md")
 		filePath = filepath.Join(calDir, filename)
 	}
 
