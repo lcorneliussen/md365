@@ -145,13 +145,13 @@ accounts:
   work:
     client_id: "YOUR_APP_CLIENT_ID"
     hint: "you@company.com"
-    scope: "Calendars.ReadWrite Contacts.ReadWrite User.Read Mail.Send"
+    scope: "offline_access Calendars.ReadWrite Contacts.ReadWrite User.Read Mail.Send"
     domains:
       - company.com
   personal:
     client_id: "YOUR_APP_CLIENT_ID"
     hint: "you@outlook.com"
-    scope: "Calendars.ReadWrite Contacts.ReadWrite User.Read"
+    scope: "offline_access Calendars.ReadWrite Contacts.ReadWrite User.Read"
     domains:
       - gmail.com
 ```
@@ -167,7 +167,9 @@ md365 sync
 
 ## Token Storage
 
-Tokens are stored in the system keyring (gnome-keyring, macOS Keychain, Windows Credential Manager). A running keyring daemon is required.
+Tokens are stored exclusively in the system keyring (gnome-keyring, macOS Keychain, Windows Credential Manager). A running keyring daemon is required — no file fallback.
+
+The `offline_access` scope enables refresh tokens, so you only need to log in once per account. Tokens refresh automatically on use and remain valid for up to 90 days of inactivity.
 
 ## Installation
 
