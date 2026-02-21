@@ -27,17 +27,20 @@ func WriteEventFile(cfg *config.Config, account string, event *graph.Event) (str
 		return "", fmt.Errorf("failed to create calendar directory: %w", err)
 	}
 
-	// Parse start date for filename
-	startDate := strings.Split(event.Start.DateTime, "T")[0]
+	// Check if a file with this event ID already exists — update in place
+	filePath := findFileByID(calDir, event.ID)
 
-	// Generate filename
-	slug := auth.Slugify(event.Subject, 60)
-	if slug == "" {
-		slug = "untitled"
+	if filePath == "" {
+		// New event — generate filename
+		startDate := strings.Split(event.Start.DateTime, "T")[0]
+		slug := auth.Slugify(event.Subject, 60)
+		if slug == "" {
+			slug = "untitled"
+		}
+		baseName := fmt.Sprintf("%s-%s", startDate, slug)
+		filename := auth.GenerateUniqueFilename(calDir, baseName, ".md")
+		filePath = filepath.Join(calDir, filename)
 	}
-	baseName := fmt.Sprintf("%s-%s", startDate, slug)
-	filename := auth.GenerateUniqueFilename(calDir, baseName, ".md")
-	filePath := filepath.Join(calDir, filename)
 
 	// Build frontmatter
 	fm := map[string]interface{}{
@@ -102,13 +105,18 @@ func WriteContactFile(cfg *config.Config, account string, contact *graph.Contact
 		return "", fmt.Errorf("failed to create contacts directory: %w", err)
 	}
 
-	// Generate filename
-	slug := auth.Slugify(contact.DisplayName, 60)
-	if slug == "" {
-		slug = "unnamed"
+	// Check if a file with this contact ID already exists — update in place
+	filePath := findFileByID(contactDir, contact.ID)
+
+	if filePath == "" {
+		// New contact — generate filename
+		slug := auth.Slugify(contact.DisplayName, 60)
+		if slug == "" {
+			slug = "unnamed"
+		}
+		filename := auth.GenerateUniqueFilename(contactDir, slug, ".md")
+		filePath = filepath.Join(contactDir, filename)
 	}
-	filename := auth.GenerateUniqueFilename(contactDir, slug, ".md")
-	filePath := filepath.Join(contactDir, filename)
 
 	// Build frontmatter
 	fm := map[string]interface{}{
@@ -221,18 +229,21 @@ func SyncCalendar(cfg *config.Config, account string, token string) error {
 		return fmt.Errorf("failed to get calendar view: %w", err)
 	}
 
-	// Track seen IDs
-	seenIDs := make(map[string]bool)
+	// Track which file path was written for each event ID
+	writtenPaths := make(map[string]string)
 
 	// Write events
 	for _, event := range events {
-		seenIDs[event.ID] = true
-		if _, err := WriteEventFile(cfg, account, &event); err != nil {
+		path, err := WriteEventFile(cfg, account, &event)
+		if err != nil {
 			fmt.Fprintf(os.Stderr, "Warning: failed to write event %s: %v\n", event.ID, err)
+			continue
 		}
+		writtenPaths[event.ID] = path
 	}
 
-	// Delete events not in API response
+	// Delete files that are not the canonical path for any event
+	// This removes both stale events and duplicates
 	deleted := 0
 	if err := filepath.Walk(calDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil || info.IsDir() || !strings.HasSuffix(path, ".md") {
@@ -244,7 +255,8 @@ func SyncCalendar(cfg *config.Config, account string, token string) error {
 			return nil
 		}
 
-		if !seenIDs[id] {
+		canonicalPath, seen := writtenPaths[id]
+		if !seen || path != canonicalPath {
 			if err := os.Remove(path); err != nil {
 				fmt.Fprintf(os.Stderr, "Warning: failed to delete %s: %v\n", path, err)
 			} else {
@@ -314,6 +326,25 @@ func SyncContacts(cfg *config.Config, account string, token string) error {
 
 	fmt.Printf("Synced contacts for '%s' (new/updated: %d, deleted: %d)\n", account, newCount, deletedCount)
 	return nil
+}
+
+// findFileByID finds an existing markdown file with the given ID in its frontmatter
+func findFileByID(dir, id string) string {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return ""
+	}
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".md") {
+			continue
+		}
+		path := filepath.Join(dir, entry.Name())
+		fileID, err := extractIDFromFile(path)
+		if err == nil && fileID == id {
+			return path
+		}
+	}
+	return ""
 }
 
 // extractIDFromFile extracts the ID from a markdown file's frontmatter
