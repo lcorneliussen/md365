@@ -1,14 +1,34 @@
 # md365
 
-A Unix-style Markdown client for Microsoft 365. Plain text storage, searchable with standard tools.
+A Unix-style Markdown client for Microsoft 365. Plain text storage, AI-friendly by design.
+
+**Built for humans and AI agents alike** — md365 syncs your M365 calendars and contacts as local Markdown files. Search with `rg`, `grep`, `fzf`, or let your AI assistant read them directly. No API calls needed for lookups.
+
+Works great with [OpenClaw](https://openclaw.ai), Claude, and other AI coding agents that can read local files.
+
+## Why md365?
+
+Most AI assistants struggle with Microsoft 365: OAuth token juggling, rate limits, slow API calls for simple lookups. md365 solves this by keeping a local Markdown mirror that any tool — human or AI — can instantly search.
+
+```bash
+# Your AI agent needs to find a meeting? Instant.
+rg "team sync" ~/.local/share/md365/
+
+# Need a phone number? Grep, done.
+grep -r "Jane Doe" ~/.local/share/md365/*/contacts/
+```
+
+No tokens, no API calls, no waiting. Just files.
 
 ## Philosophy
 
 - **Read local, write remote** — calendars and contacts sync as Markdown files; mutations go through Graph API
 - **Plain text storage** — YAML frontmatter + Markdown body, one file per item
-- **Unix-like** — `rg`, `fzf`, `grep` — use whatever you want to search
+- **AI-friendly** — structured frontmatter for programmatic access, readable body for humans and LLMs
+- **Unix-like** — `rg`, `fzf`, `grep`, `cat` — use whatever you want
 - **Cross-tenant guard** — prevents accidentally emailing/scheduling from the wrong account
-- **Minimal dependencies** — single Go binary, no runtime needed
+- **Multi-account** — manage personal, work, and org accounts side by side
+- **Single binary** — no runtime dependencies, cross-platform
 
 ## Storage Layout
 
@@ -114,6 +134,27 @@ md365 mail send --account work \
   --body "Message text"
 ```
 
+## AI Agent Integration
+
+md365 is designed to be a perfect data source for AI assistants:
+
+- **Structured frontmatter** — agents can parse YAML metadata (dates, attendees, emails) without guessing
+- **Human-readable body** — LLMs can understand the content naturally
+- **File-per-item** — no databases to query, just `cat` a file
+- **Predictable paths** — `~/.local/share/md365/<account>/calendar/<date>-<slug>.md`
+- **Instant search** — `rg` across all accounts in milliseconds, no API latency
+- **Cross-tenant safety** — domain-based guards prevent your AI from sending emails from the wrong account
+
+### Example: OpenClaw / Claude
+
+```
+User: "When is my next meeting with Jane?"
+Agent: *reads ~/.local/share/md365/work/calendar/*.md*
+Agent: "Tomorrow at 2pm — Team Sync with Jane Doe on Zoom."
+```
+
+No OAuth dance, no token refresh, no API timeout. The data is just *there*.
+
 ## Cross-Tenant Guard
 
 md365 prevents accidentally emailing or scheduling from the wrong account. Configure associated domains per account:
@@ -145,7 +186,7 @@ If you try to send from `personal` to `colleague@company.com`, md365 will block 
    - `Calendars.ReadWrite`
    - `Contacts.ReadWrite`
    - `User.Read`
-   - `Mail.Send` (if you want to send mail)
+   - `Mail.Send` (optional, for sending mail)
    - `People.Read` (optional, for people search)
 
 ### 2. Configure md365
@@ -204,6 +245,15 @@ Check [Releases](https://github.com/lcorneliussen/md365/releases) for pre-built 
 - **Events:** Full window sync (past 30 days → future 90 days). Deleted events are removed locally.
 - **Contacts:** Delta sync using Graph API delta links for incremental updates.
 - **Direction:** One-way (remote → local). Local files are a read-only cache. Write operations go through CLI commands → API.
+
+## Roadmap
+
+- [ ] Mail sync (read-only cache of inbox)
+- [ ] `md365 cal edit` — edit in `$EDITOR`, push changes to API
+- [ ] Recurring event expansion
+- [ ] Goreleaser for automated cross-platform builds
+- [ ] Systemd/cron timer for periodic sync
+- [ ] Google Workspace support
 
 ## Dependencies
 
