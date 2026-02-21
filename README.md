@@ -1,14 +1,14 @@
 # md365
 
-A Unix-style Markdown client for Microsoft 365. Plain text storage, AI-friendly by design.
+AI-native terminal client for Microsoft 365. Syncs calendars & contacts as local Markdown files — readable by agents, searchable with `grep`.
 
-**Built for humans and AI agents alike** — md365 syncs your M365 calendars and contacts as local Markdown files. Search with `rg`, `grep`, `fzf`, or let your AI assistant read them directly. No API calls needed for lookups.
+**Your AI agent shouldn't need to fight OAuth every time it checks your calendar.** md365 keeps a local Markdown mirror of your M365 data that any agent can just *read*. No tokens, no API calls, no waiting.
 
-Works great with [OpenClaw](https://openclaw.ai), Claude, and other AI coding agents that can read local files.
+Works great with [OpenClaw](https://openclaw.ai), Claude Code, Codex, and any AI agent with file system access.
 
 ## Why md365?
 
-Most AI assistants struggle with Microsoft 365: OAuth token juggling, rate limits, slow API calls for simple lookups. md365 solves this by keeping a local Markdown mirror that any tool — human or AI — can instantly search.
+AI agents struggle with Microsoft 365: OAuth token juggling, rate limits, slow API roundtrips for simple lookups. Humans have Outlook. Agents had nothing — until now.
 
 ```bash
 # Your AI agent needs to find a meeting? Instant.
