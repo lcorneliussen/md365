@@ -8,7 +8,9 @@ Works great with [OpenClaw](https://openclaw.ai), Claude Code, Codex, and any AI
 
 ## Why md365?
 
-AI agents struggle with Microsoft 365: OAuth token juggling, rate limits, slow API roundtrips for simple lookups. Humans have Outlook. Agents had nothing — until now.
+AI agents struggle with Microsoft 365: OAuth token juggling, rate limits, and slow API roundtrips just to answer "when is my next meeting?". Every lookup is a multi-step API dance instead of a simple file read. Humans have Outlook. Agents had nothing — until now.
+
+md365 turns your M365 data into a local file tree that agents can search in milliseconds — no API calls, no token refresh, no pagination.
 
 ```bash
 # Your AI agent needs to find a meeting? Instant.
