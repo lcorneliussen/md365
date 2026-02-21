@@ -153,17 +153,18 @@ func Login(cfg *config.Config, account string) error {
 		return fmt.Errorf("failed to parse response: %w", err)
 	}
 
+	// Build direct login URL with pre-filled code
+	directURL := fmt.Sprintf("%s?otc=%s", deviceResp.VerificationURI, deviceResp.UserCode)
+
 	fmt.Println()
-	fmt.Println("To sign in, use a web browser to open:")
-	fmt.Printf("  %s\n", deviceResp.VerificationURI)
+	fmt.Println("Open this link to sign in (code is pre-filled):")
+	fmt.Printf("  %s\n", directURL)
 	fmt.Println()
-	fmt.Println("And enter the code:")
-	fmt.Printf("  %s\n", deviceResp.UserCode)
-	fmt.Println()
+	fmt.Printf("Or go to %s and enter code: %s\n", deviceResp.VerificationURI, deviceResp.UserCode)
 	if acc.Hint != "" {
 		fmt.Printf("Account hint: %s\n", acc.Hint)
-		fmt.Println()
 	}
+	fmt.Println()
 	fmt.Println("Waiting for authentication...")
 
 	// Poll for token
