@@ -3,7 +3,7 @@ package cmd
 import (
 	"time"
 
-	"github.com/larsc/md365/internal/cal"
+	"github.com/lcorneliussen/md365/internal/cal"
 	"github.com/spf13/cobra"
 )
 

@@ -3,7 +3,7 @@ package main
 import (
 	"os"
 
-	"github.com/larsc/md365/cmd"
+	"github.com/lcorneliussen/md365/cmd"
 )
 
 func main() {

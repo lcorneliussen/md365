@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/larsc/md365/internal/config"
+	"github.com/lcorneliussen/md365/internal/config"
 	"gopkg.in/yaml.v3"
 )
 

@@ -1,7 +1,7 @@
 package cmd
 
 import (
-	"github.com/larsc/md365/internal/auth"
+	"github.com/lcorneliussen/md365/internal/auth"
 	"github.com/spf13/cobra"
 )
 

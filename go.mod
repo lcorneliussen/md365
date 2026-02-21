@@ -1,4 +1,4 @@
-module github.com/larsc/md365
+module github.com/lcorneliussen/md365
 
 go 1.25.0
 

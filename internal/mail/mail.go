@@ -3,9 +3,9 @@ package mail
 import (
 	"fmt"
 
-	"github.com/larsc/md365/internal/auth"
-	"github.com/larsc/md365/internal/config"
-	"github.com/larsc/md365/internal/graph"
+	"github.com/lcorneliussen/md365/internal/auth"
+	"github.com/lcorneliussen/md365/internal/config"
+	"github.com/lcorneliussen/md365/internal/graph"
 )
 
 // Send sends an email

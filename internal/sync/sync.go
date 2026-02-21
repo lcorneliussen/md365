@@ -8,9 +8,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/larsc/md365/internal/auth"
-	"github.com/larsc/md365/internal/config"
-	"github.com/larsc/md365/internal/graph"
+	"github.com/lcorneliussen/md365/internal/auth"
+	"github.com/lcorneliussen/md365/internal/config"
+	"github.com/lcorneliussen/md365/internal/graph"
 	"gopkg.in/yaml.v3"
 )
 

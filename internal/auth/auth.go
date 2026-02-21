@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/larsc/md365/internal/config"
+	"github.com/lcorneliussen/md365/internal/config"
 )
 
 const (

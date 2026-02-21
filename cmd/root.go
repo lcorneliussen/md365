@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/larsc/md365/internal/config"
+	"github.com/lcorneliussen/md365/internal/config"
 	"github.com/spf13/cobra"
 )
 

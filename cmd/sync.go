@@ -3,8 +3,8 @@ package cmd
 import (
 	"fmt"
 
-	"github.com/larsc/md365/internal/auth"
-	"github.com/larsc/md365/internal/sync"
+	"github.com/lcorneliussen/md365/internal/auth"
+	"github.com/lcorneliussen/md365/internal/sync"
 	"github.com/spf13/cobra"
 )
 
