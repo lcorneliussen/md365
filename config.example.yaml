@@ -1,0 +1,23 @@
+# md365 configuration
+# Copy to ~/.config/md365/config.yaml and fill in your values
+
+# Global client_id (fallback if not set per account)
+# client_id: "YOUR_AZURE_APP_CLIENT_ID"
+
+timezone: "Europe/Berlin"
+
+accounts:
+  work:
+    client_id: "YOUR_AZURE_APP_CLIENT_ID"
+    hint: "you@company.com"
+    scope: "Calendars.ReadWrite Contacts.ReadWrite User.Read Mail.Send"
+    domains:
+      - company.com
+  personal:
+    client_id: "YOUR_AZURE_APP_CLIENT_ID"
+    hint: "you@outlook.com"
+    scope: "Calendars.ReadWrite Contacts.ReadWrite User.Read"
+    domains:
+      - gmail.com
+      - outlook.com
+      - hotmail.com

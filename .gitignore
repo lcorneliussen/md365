@@ -1,0 +1,6 @@
+tokens/
+*.token.json
+.sync/
+md365-go
+*.exe
+config.yaml
