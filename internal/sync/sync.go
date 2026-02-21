@@ -58,13 +58,13 @@ func WriteEventFile(cfg *config.Config, account string, event *graph.Event) (str
 	}
 
 	if event.Organizer.EmailAddress.Address != "" {
-		fm["organizer"] = event.Organizer.EmailAddress.Address
+		fm["organizer"] = event.Organizer.EmailAddress.Format()
 	}
 
 	if len(event.Attendees) > 0 {
 		attendees := make([]string, len(event.Attendees))
 		for i, a := range event.Attendees {
-			attendees[i] = a.EmailAddress.Address
+			attendees[i] = a.EmailAddress.Format()
 		}
 		fm["attendees"] = attendees
 	}

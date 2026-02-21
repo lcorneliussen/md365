@@ -67,7 +67,16 @@ type Attendee struct {
 
 // EmailAddress represents an email address
 type EmailAddress struct {
+	Name    string `json:"name"`
 	Address string `json:"address"`
+}
+
+// Format returns "Name <email>" or just "email" if no name
+func (e EmailAddress) Format() string {
+	if e.Name != "" && e.Name != e.Address {
+		return fmt.Sprintf("%s <%s>", e.Name, e.Address)
+	}
+	return e.Address
 }
 
 // Response represents a response status
