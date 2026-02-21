@@ -109,7 +109,6 @@ md365 mail send --account work \         # Send mail via API
 
 md365 auth login --account work          # Device code OAuth login
 md365 auth status                        # Token status
-md365 auth import                        # Migrate file tokens → keyring
 ```
 
 ## Cross-Tenant Guard
@@ -168,13 +167,7 @@ md365 sync
 
 ## Token Storage
 
-Tokens are stored in the system keyring (gnome-keyring, macOS Keychain, Windows Credential Manager). Falls back to file storage on headless systems.
-
-```bash
-md365 auth import    # Migrate file tokens → keyring
-md365 auth export    # Export keyring → files (backup)
-md365 auth status    # Shows [keyring] or [file] per account
-```
+Tokens are stored in the system keyring (gnome-keyring, macOS Keychain, Windows Credential Manager). A running keyring daemon is required.
 
 ## Installation
 
