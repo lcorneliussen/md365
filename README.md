@@ -1,6 +1,6 @@
 # md365
 
-AI-native terminal client for Microsoft 365. Syncs calendars & contacts as local Markdown files — readable by agents, searchable with `grep`.
+AI-native CLI for Microsoft 365. Syncs calendars & contacts as local Markdown files — readable by agents, searchable with `grep`.
 
 **Your AI agent shouldn't need to fight OAuth every time it checks your calendar.** md365 keeps a local Markdown mirror of your M365 data that any agent can just *read*. No tokens, no API calls, no waiting.
 
