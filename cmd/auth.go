@@ -60,11 +60,46 @@ var authRefreshCmd = &cobra.Command{
 	},
 }
 
+// authImportCmd represents the auth import command
+var authImportCmd = &cobra.Command{
+	Use:   "import",
+	Short: "Import tokens from files to keyring",
+	Long: `Import authentication tokens from JSON files to system keyring.
+Reads existing JSON token files from ~/.config/md365/tokens/<account>.json,
+imports them into the system keyring, then renames the files to <account>.json.bak.
+
+Use --account to import a specific account, or omit to import all accounts.`,
+	Run: func(cmd *cobra.Command, args []string) {
+		if err := auth.ImportTokens(cfg, authAccount); err != nil {
+			fatal(err)
+		}
+	},
+}
+
+// authExportCmd represents the auth export command
+var authExportCmd = &cobra.Command{
+	Use:   "export",
+	Short: "Export tokens from keyring to files",
+	Long: `Export authentication tokens from system keyring to JSON files.
+Writes tokens to ~/.config/md365/tokens/<account>.json for backup or migration.
+
+Use --account to export a specific account, or omit to export all accounts.`,
+	Run: func(cmd *cobra.Command, args []string) {
+		if err := auth.ExportTokens(cfg, authAccount); err != nil {
+			fatal(err)
+		}
+	},
+}
+
 func init() {
 	authLoginCmd.Flags().StringVar(&authAccount, "account", "", "Account name (required)")
 	authRefreshCmd.Flags().StringVar(&authAccount, "account", "", "Account name (required)")
+	authImportCmd.Flags().StringVar(&authAccount, "account", "", "Account to import (or omit for all)")
+	authExportCmd.Flags().StringVar(&authAccount, "account", "", "Account to export (or omit for all)")
 
 	authCmd.AddCommand(authLoginCmd)
 	authCmd.AddCommand(authStatusCmd)
 	authCmd.AddCommand(authRefreshCmd)
+	authCmd.AddCommand(authImportCmd)
+	authCmd.AddCommand(authExportCmd)
 }
