@@ -21,8 +21,7 @@ var (
 	authAddFlow    string
 	authAddScopes  string
 	authAddDomains string
-	authAddLogin       bool
-	authAddInteractive bool
+	authAddLogin bool
 )
 
 // authCmd represents the auth command
@@ -121,11 +120,11 @@ func runAuthAdd() error {
 		loginNow     bool
 	)
 
-	if !authAddInteractive && authAddName == "" {
+	if !Interactive && authAddName == "" {
 		return fmt.Errorf("--name is required. Use --interactive for guided setup.\n\nExample: md365 auth add --name work --hint user@company.com")
 	}
 
-	if !authAddInteractive {
+	if !Interactive {
 		// Non-interactive mode: use flags
 		accountName = strings.TrimSpace(authAddName)
 		emailHint = strings.TrimSpace(authAddHint)
@@ -286,7 +285,6 @@ func init() {
 	authAddCmd.Flags().StringVar(&authAddScopes, "scopes", "", "Comma-separated scopes (e.g., Calendars.ReadWrite,User.Read)")
 	authAddCmd.Flags().StringVar(&authAddDomains, "domains", "", "Comma-separated domains (e.g., company.com,subsidiary.com)")
 	authAddCmd.Flags().BoolVar(&authAddLogin, "login", false, "Auto-login after creating account")
-	authAddCmd.Flags().BoolVar(&authAddInteractive, "interactive", false, "Use interactive TUI setup")
 
 	authCmd.AddCommand(authLoginCmd)
 	authCmd.AddCommand(authStatusCmd)
