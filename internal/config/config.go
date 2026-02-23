@@ -20,6 +20,7 @@ type Config struct {
 // Account represents an account configuration
 type Account struct {
 	ClientID string   `yaml:"client_id"`
+	AuthFlow string   `yaml:"auth_flow"`
 	Hint     string   `yaml:"hint"`
 	Scope    string   `yaml:"scope"`
 	Domains  []string `yaml:"domains"`
@@ -31,6 +32,14 @@ func (c *Config) GetClientID(accountName string) string {
 		return acc.ClientID
 	}
 	return c.ClientID
+}
+
+// GetAuthFlow returns the auth_flow for an account (default: "devicecode")
+func (c *Config) GetAuthFlow(accountName string) string {
+	if acc, ok := c.Accounts[accountName]; ok && acc.AuthFlow != "" {
+		return acc.AuthFlow
+	}
+	return "devicecode"
 }
 
 var (

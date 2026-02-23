@@ -1,12 +1,18 @@
 package auth
 
 import (
+	"context"
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -17,6 +23,7 @@ import (
 
 const (
 	deviceCodeURL  = "https://login.microsoftonline.com/common/oauth2/v2.0/devicecode"
+	authorizeURL   = "https://login.microsoftonline.com/common/oauth2/v2.0/authorize"
 	tokenURL       = "https://login.microsoftonline.com/common/oauth2/v2.0/token"
 	tokenBuffer    = 5 * time.Minute // Auto-refresh 5 minutes before expiry
 	keyringService = "md365"         // Service name for keyring storage
@@ -227,6 +234,211 @@ func Login(cfg *config.Config, account string) error {
 	}
 
 	return fmt.Errorf("authentication timed out")
+}
+
+// generateCodeVerifier generates a PKCE code verifier (43-128 chars, URL-safe)
+func generateCodeVerifier() (string, error) {
+	b := make([]byte, 32)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	return base64.RawURLEncoding.EncodeToString(b), nil
+}
+
+// generateCodeChallenge generates a PKCE code challenge (SHA256, base64url)
+func generateCodeChallenge(verifier string) string {
+	h := sha256.New()
+	h.Write([]byte(verifier))
+	return base64.RawURLEncoding.EncodeToString(h.Sum(nil))
+}
+
+// getFreePort finds a free port on localhost
+func getFreePort() (int, error) {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		return 0, err
+	}
+	defer listener.Close()
+	return listener.Addr().(*net.TCPAddr).Port, nil
+}
+
+// DispatchLogin performs authentication using the configured flow for the account
+func DispatchLogin(cfg *config.Config, account string) error {
+	authFlow := cfg.GetAuthFlow(account)
+	switch authFlow {
+	case "authcode":
+		return LoginAuthCode(cfg, account)
+	case "devicecode":
+		return Login(cfg, account)
+	default:
+		return fmt.Errorf("unknown auth_flow '%s' for account '%s'. Valid values: devicecode, authcode", authFlow, account)
+	}
+}
+
+// LoginAuthCode performs authorization code flow with PKCE
+func LoginAuthCode(cfg *config.Config, account string) error {
+	acc, err := cfg.GetAccount(account)
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("Initiating authorization code flow for account '%s'...\n", account)
+
+	// Generate PKCE parameters
+	codeVerifier, err := generateCodeVerifier()
+	if err != nil {
+		return fmt.Errorf("failed to generate code verifier: %w", err)
+	}
+	codeChallenge := generateCodeChallenge(codeVerifier)
+
+	// Get a free port
+	port, err := getFreePort()
+	if err != nil {
+		return fmt.Errorf("failed to find free port: %w", err)
+	}
+
+	redirectURI := fmt.Sprintf("http://localhost:%d/callback", port)
+
+	// Build authorization URL
+	authURL, err := url.Parse(authorizeURL)
+	if err != nil {
+		return fmt.Errorf("failed to parse authorize URL: %w", err)
+	}
+
+	params := url.Values{
+		"client_id":             {cfg.GetClientID(account)},
+		"response_type":         {"code"},
+		"redirect_uri":          {redirectURI},
+		"scope":                 {acc.Scope},
+		"code_challenge":        {codeChallenge},
+		"code_challenge_method": {"S256"},
+	}
+	if acc.Hint != "" {
+		params.Set("login_hint", acc.Hint)
+	}
+	authURL.RawQuery = params.Encode()
+
+	// Channel to receive authorization code or error
+	resultCh := make(chan string, 1)
+	errorCh := make(chan error, 1)
+
+	// Create HTTP server
+	mux := http.NewServeMux()
+	mux.HandleFunc("/callback", func(w http.ResponseWriter, r *http.Request) {
+		code := r.URL.Query().Get("code")
+		errParam := r.URL.Query().Get("error")
+
+		if errParam != "" {
+			errDesc := r.URL.Query().Get("error_description")
+			errorCh <- fmt.Errorf("authorization error: %s - %s", errParam, errDesc)
+			w.Header().Set("Content-Type", "text/html")
+			fmt.Fprintf(w, "<html><body><h1>Authentication failed</h1><p>%s: %s</p><p>You can close this tab.</p></body></html>", errParam, errDesc)
+			return
+		}
+
+		if code == "" {
+			errorCh <- fmt.Errorf("no authorization code received")
+			w.Header().Set("Content-Type", "text/html")
+			fmt.Fprintf(w, "<html><body><h1>Authentication failed</h1><p>No authorization code received.</p><p>You can close this tab.</p></body></html>")
+			return
+		}
+
+		resultCh <- code
+		w.Header().Set("Content-Type", "text/html")
+		fmt.Fprintf(w, "<html><body><h1>Authentication successful</h1><p>You can close this tab.</p></body></html>")
+	})
+
+	server := &http.Server{
+		Addr:    fmt.Sprintf("127.0.0.1:%d", port),
+		Handler: mux,
+	}
+
+	// Start server in background
+	go func() {
+		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			errorCh <- fmt.Errorf("server error: %w", err)
+		}
+	}()
+
+	// Ensure server shutdown
+	defer func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		server.Shutdown(ctx)
+	}()
+
+	// Print URL and try to open browser
+	fmt.Println()
+	fmt.Println("Opening browser for authentication...")
+	fmt.Printf("  %s\n", authURL.String())
+	fmt.Println()
+	fmt.Println("If the browser doesn't open, copy the URL above into your browser.")
+	if acc.Hint != "" {
+		fmt.Printf("Account hint: %s\n", acc.Hint)
+	}
+	fmt.Println()
+	fmt.Println("Waiting for authentication...")
+
+	// Try to open browser (Linux only, ignore errors)
+	exec.Command("xdg-open", authURL.String()).Start()
+
+	// Wait for callback with timeout (~900s to match device code flow)
+	timeout := time.After(900 * time.Second)
+
+	var authCode string
+	select {
+	case authCode = <-resultCh:
+		// Success, continue
+	case err := <-errorCh:
+		return err
+	case <-timeout:
+		return fmt.Errorf("authentication timed out")
+	}
+
+	// Exchange code for token
+	tokenData := url.Values{
+		"client_id":     {cfg.GetClientID(account)},
+		"grant_type":    {"authorization_code"},
+		"code":          {authCode},
+		"redirect_uri":  {redirectURI},
+		"code_verifier": {codeVerifier},
+	}
+
+	resp, err := http.PostForm(tokenURL, tokenData)
+	if err != nil {
+		return fmt.Errorf("failed to exchange code for token: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("failed to read token response: %w", err)
+	}
+
+	var tokenResp TokenResponse
+	if err := json.Unmarshal(body, &tokenResp); err != nil {
+		return fmt.Errorf("failed to parse token response: %w", err)
+	}
+
+	if tokenResp.Error != "" {
+		return fmt.Errorf("token error: %s - %s", tokenResp.Error, tokenResp.ErrorDesc)
+	}
+
+	// Save token
+	newToken := Token{
+		AccessToken:  tokenResp.AccessToken,
+		RefreshToken: tokenResp.RefreshToken,
+		ExpiresOn:    time.Now().Unix() + int64(tokenResp.ExpiresIn),
+		Scope:        acc.Scope,
+	}
+
+	if err := saveToken(account, &newToken); err != nil {
+		return fmt.Errorf("failed to save token: %w", err)
+	}
+
+	fmt.Println()
+	fmt.Printf("Successfully authenticated account '%s'\n", account)
+	return nil
 }
 
 // Status shows authentication status for all accounts

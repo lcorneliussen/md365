@@ -20,14 +20,14 @@ var authCmd = &cobra.Command{
 var authLoginCmd = &cobra.Command{
 	Use:   "login",
 	Short: "Login to account",
-	Long:  `Initiate device code flow to authenticate an account.`,
+	Long:  `Authenticate an account using the configured auth flow (devicecode or authcode).`,
 	Run: func(cmd *cobra.Command, args []string) {
 		if authAccount == "" {
 			fatal(cmd.Help())
 			return
 		}
 
-		if err := auth.Login(cfg, authAccount); err != nil {
+		if err := auth.DispatchLogin(cfg, authAccount); err != nil {
 			fatal(err)
 		}
 	},
