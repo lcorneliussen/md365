@@ -347,7 +347,7 @@ func LoginAuthCode(cfg *config.Config, account string, scope string) error {
 		return fmt.Errorf("failed to find free port: %w", err)
 	}
 
-	redirectURI := fmt.Sprintf("http://localhost:%d/callback", port)
+	redirectURI := fmt.Sprintf("http://localhost:%d", port)
 
 	// Build authorization URL
 	authURL, err := url.Parse(authorizeURL)
@@ -374,7 +374,7 @@ func LoginAuthCode(cfg *config.Config, account string, scope string) error {
 
 	// Create HTTP server
 	mux := http.NewServeMux()
-	mux.HandleFunc("/callback", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		code := r.URL.Query().Get("code")
 		errParam := r.URL.Query().Get("error")
 

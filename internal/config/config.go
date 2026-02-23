@@ -9,6 +9,12 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// DefaultClientID is the official md365 app registration
+const DefaultClientID = "98a465bc-fdca-4ea6-a3b9-a4b819e50a86"
+
+// DefaultClientID is the official md365 app registration (multi-tenant, public client)
+const DefaultClientID = "98a465bc-fdca-4ea6-a3b9-a4b819e50a86"
+
 // Config represents the application configuration
 type Config struct {
 	ClientID string              `yaml:"client_id"`
@@ -87,8 +93,9 @@ func Load() (*Config, error) {
 		return nil, fmt.Errorf("failed to parse config file: %w", err)
 	}
 
+	// Default to official md365 app registration if no client_id configured
 	if cfg.ClientID == "" {
-		return nil, fmt.Errorf("client_id not found in config")
+		cfg.ClientID = DefaultClientID
 	}
 
 	// Set default timezone
