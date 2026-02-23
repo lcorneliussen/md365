@@ -21,7 +21,8 @@ var (
 	authAddFlow    string
 	authAddScopes  string
 	authAddDomains string
-	authAddLogin   bool
+	authAddLogin       bool
+	authAddInteractive bool
 )
 
 // authCmd represents the auth command
@@ -95,8 +96,14 @@ var authScopesCmd = &cobra.Command{
 // authAddCmd represents the auth add command
 var authAddCmd = &cobra.Command{
 	Use:   "add",
-	Short: "Add a new account (interactively or via flags)",
-	Long:  `Add a new account with authentication configuration. Use flags for non-interactive mode, or omit --name for interactive setup.`,
+	Short: "Add a new account",
+	Long: `Add a new account with authentication configuration.
+
+Requires --name flag. Use --interactive for a guided TUI setup.
+
+Examples:
+  md365 auth add --name work --hint user@company.com --flow authcode --scopes "Calendars.ReadWrite,User.Read"
+  md365 auth add --interactive`,
 	Run: func(cmd *cobra.Command, args []string) {
 		if err := runAuthAdd(); err != nil {
 			fatal(err)
@@ -114,8 +121,11 @@ func runAuthAdd() error {
 		loginNow     bool
 	)
 
-	// Check if running in non-interactive mode (--name flag provided)
-	if authAddName != "" {
+	if !authAddInteractive && authAddName == "" {
+		return fmt.Errorf("--name is required. Use --interactive for guided setup.\n\nExample: md365 auth add --name work --hint user@company.com")
+	}
+
+	if !authAddInteractive {
 		// Non-interactive mode: use flags
 		accountName = strings.TrimSpace(authAddName)
 		emailHint = strings.TrimSpace(authAddHint)
@@ -270,12 +280,13 @@ func init() {
 	authScopesCmd.Flags().StringVar(&authAccount, "account", "", "Account name (required)")
 
 	// Flags for auth add (non-interactive mode)
-	authAddCmd.Flags().StringVar(&authAddName, "name", "", "Account name (required for non-interactive mode)")
+	authAddCmd.Flags().StringVar(&authAddName, "name", "", "Account name (required)")
 	authAddCmd.Flags().StringVar(&authAddHint, "hint", "", "Email hint (e.g., user@company.com)")
 	authAddCmd.Flags().StringVar(&authAddFlow, "flow", "devicecode", "Auth flow: devicecode or authcode")
 	authAddCmd.Flags().StringVar(&authAddScopes, "scopes", "", "Comma-separated scopes (e.g., Calendars.ReadWrite,User.Read)")
 	authAddCmd.Flags().StringVar(&authAddDomains, "domains", "", "Comma-separated domains (e.g., company.com,subsidiary.com)")
 	authAddCmd.Flags().BoolVar(&authAddLogin, "login", false, "Auto-login after creating account")
+	authAddCmd.Flags().BoolVar(&authAddInteractive, "interactive", false, "Use interactive TUI setup")
 
 	authCmd.AddCommand(authLoginCmd)
 	authCmd.AddCommand(authStatusCmd)
