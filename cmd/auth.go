@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/charmbracelet/huh"
@@ -21,7 +22,7 @@ var (
 	authAddFlow    string
 	authAddScopes  string
 	authAddDomains string
-	authAddLogin   bool
+	authAddLogin bool
 )
 
 // authCmd represents the auth command
@@ -95,8 +96,14 @@ var authScopesCmd = &cobra.Command{
 // authAddCmd represents the auth add command
 var authAddCmd = &cobra.Command{
 	Use:   "add",
-	Short: "Add a new account (interactively or via flags)",
-	Long:  `Add a new account with authentication configuration. Use flags for non-interactive mode, or omit --name for interactive setup.`,
+	Short: "Add a new account",
+	Long: `Add a new account with authentication configuration.
+
+Requires --name flag. Use --interactive for a guided TUI setup.
+
+Examples:
+  md365 auth add --name work --hint user@company.com --flow authcode --scopes "Calendars.ReadWrite,User.Read"
+  md365 auth add --interactive`,
 	Run: func(cmd *cobra.Command, args []string) {
 		if err := runAuthAdd(); err != nil {
 			fatal(err)
@@ -114,16 +121,28 @@ func runAuthAdd() error {
 		loginNow     bool
 	)
 
-	// Check if running in non-interactive mode (--name flag provided)
-	if authAddName != "" {
+	if !Interactive && authAddName == "" {
+		return fmt.Errorf("--name is required. Use --interactive for guided setup.\n\nExample: md365 auth add --name work --hint user@company.com")
+	}
+
+	if !Interactive {
 		// Non-interactive mode: use flags
 		accountName = strings.TrimSpace(authAddName)
+
+		// Validate account name (used in file paths / keyring keys)
+		if !regexp.MustCompile(`^[a-zA-Z0-9_-]+$`).MatchString(accountName) {
+			return fmt.Errorf("account name must contain only letters, numbers, dashes, and underscores")
+		}
+
 		emailHint = strings.TrimSpace(authAddHint)
 
-		// Default flow to devicecode if not specified
+		// Validate and set auth flow
 		authFlow = authAddFlow
 		if authFlow == "" {
 			authFlow = "devicecode"
+		}
+		if authFlow != "devicecode" && authFlow != "authcode" {
+			return fmt.Errorf("invalid --flow: must be 'devicecode' or 'authcode'")
 		}
 
 		// Parse scopes from flag (comma-separated)
@@ -270,7 +289,7 @@ func init() {
 	authScopesCmd.Flags().StringVar(&authAccount, "account", "", "Account name (required)")
 
 	// Flags for auth add (non-interactive mode)
-	authAddCmd.Flags().StringVar(&authAddName, "name", "", "Account name (required for non-interactive mode)")
+	authAddCmd.Flags().StringVar(&authAddName, "name", "", "Account name (required)")
 	authAddCmd.Flags().StringVar(&authAddHint, "hint", "", "Email hint (e.g., user@company.com)")
 	authAddCmd.Flags().StringVar(&authAddFlow, "flow", "devicecode", "Auth flow: devicecode or authcode")
 	authAddCmd.Flags().StringVar(&authAddScopes, "scopes", "", "Comma-separated scopes (e.g., Calendars.ReadWrite,User.Read)")

@@ -9,7 +9,8 @@ import (
 )
 
 var (
-	cfg *config.Config
+	cfg         *config.Config
+	Interactive bool
 )
 
 // rootCmd represents the base command when called without any subcommands
@@ -41,6 +42,9 @@ func Execute() error {
 }
 
 func init() {
+	// Global flags
+	rootCmd.PersistentFlags().BoolVarP(&Interactive, "interactive", "i", false, "Use interactive TUI mode")
+
 	// Add subcommands
 	rootCmd.AddCommand(syncCmd)
 	rootCmd.AddCommand(calCmd)
