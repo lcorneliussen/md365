@@ -6,7 +6,9 @@ import (
 )
 
 var (
-	authAccount string
+	authAccount  string
+	authScope    string
+	authAddScope []string
 )
 
 // authCmd represents the auth command
@@ -27,7 +29,7 @@ var authLoginCmd = &cobra.Command{
 			return
 		}
 
-		if err := auth.DispatchLogin(cfg, authAccount); err != nil {
+		if err := auth.DispatchLogin(cfg, authAccount, authScope, authAddScope); err != nil {
 			fatal(err)
 		}
 	},
@@ -60,11 +62,32 @@ var authRefreshCmd = &cobra.Command{
 	},
 }
 
+// authScopesCmd represents the auth scopes command
+var authScopesCmd = &cobra.Command{
+	Use:   "scopes",
+	Short: "Show token scopes",
+	Long:  `Display the scopes stored in the current token for an account.`,
+	Run: func(cmd *cobra.Command, args []string) {
+		if authAccount == "" {
+			fatal(cmd.Help())
+			return
+		}
+
+		if err := auth.ShowScopes(authAccount); err != nil {
+			fatal(err)
+		}
+	},
+}
+
 func init() {
 	authLoginCmd.Flags().StringVar(&authAccount, "account", "", "Account name (required)")
+	authLoginCmd.Flags().StringVar(&authScope, "scope", "", "Override config scope (full scope string)")
+	authLoginCmd.Flags().StringSliceVar(&authAddScope, "add-scope", []string{}, "Add scope(s) to existing token scopes")
 	authRefreshCmd.Flags().StringVar(&authAccount, "account", "", "Account name (required)")
+	authScopesCmd.Flags().StringVar(&authAccount, "account", "", "Account name (required)")
 
 	authCmd.AddCommand(authLoginCmd)
 	authCmd.AddCommand(authStatusCmd)
 	authCmd.AddCommand(authRefreshCmd)
+	authCmd.AddCommand(authScopesCmd)
 }
