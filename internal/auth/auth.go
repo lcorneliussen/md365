@@ -502,18 +502,27 @@ func Status(cfg *config.Config) {
 	fmt.Println()
 
 	for _, account := range cfg.ListAccounts() {
+		authFlow := cfg.GetAuthFlow(account)
 		token, err := loadToken(account)
 		if err != nil {
-			fmt.Printf("  %s: NOT AUTHENTICATED\n", account)
+			fmt.Printf("  %s: NOT AUTHENTICATED [%s]\n", account, authFlow)
 			continue
 		}
 
 		if token.ExpiresOn > time.Now().Unix() {
 			remaining := time.Duration(token.ExpiresOn-time.Now().Unix()) * time.Second
 			hours := int(remaining.Hours())
-			fmt.Printf("  %s: Valid (expires in %dh)\n", account, hours)
+			fmt.Printf("  %s: Valid (expires in %dh) [%s]\n", account, hours, authFlow)
+			// Show scopes
+			if token.Scope != "" {
+				fmt.Printf("    Scopes: %s\n", token.Scope)
+			}
 		} else {
-			fmt.Printf("  %s: EXPIRED\n", account)
+			fmt.Printf("  %s: EXPIRED [%s]\n", account, authFlow)
+			// Show scopes even if expired
+			if token.Scope != "" {
+				fmt.Printf("    Scopes: %s\n", token.Scope)
+			}
 		}
 	}
 }
