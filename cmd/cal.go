@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/lcorneliussen/md365/internal/cal"
+	"os"
 	"github.com/spf13/cobra"
 )
 
@@ -73,7 +74,8 @@ var calCreateCmd = &cobra.Command{
 	Long:  `Create a new calendar event via Microsoft Graph API.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		if calAccount == "" || calSubject == "" || calStart == "" || calEnd == "" {
-			fatal(cmd.Help())
+			cmd.Help()
+			os.Exit(1)
 			return
 		}
 

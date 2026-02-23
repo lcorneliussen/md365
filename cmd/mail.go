@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"github.com/lcorneliussen/md365/internal/mail"
+	"os"
 	"github.com/spf13/cobra"
 )
 
@@ -27,7 +28,8 @@ var mailSendCmd = &cobra.Command{
 	Long:  `Send an email via Microsoft Graph API.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		if mailAccount == "" || mailTo == "" || mailSubject == "" {
-			fatal(cmd.Help())
+			cmd.Help()
+			os.Exit(1)
 			return
 		}
 

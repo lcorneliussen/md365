@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"os"
 	"regexp"
 	"strings"
 
@@ -39,7 +40,8 @@ var authLoginCmd = &cobra.Command{
 	Long:  `Authenticate an account using the configured auth flow (devicecode or authcode).`,
 	Run: func(cmd *cobra.Command, args []string) {
 		if authAccount == "" {
-			fatal(cmd.Help())
+			cmd.Help()
+			os.Exit(1)
 			return
 		}
 
@@ -66,7 +68,8 @@ var authRefreshCmd = &cobra.Command{
 	Long:  `Force refresh the access token for an account.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		if authAccount == "" {
-			fatal(cmd.Help())
+			cmd.Help()
+			os.Exit(1)
 			return
 		}
 
@@ -83,7 +86,8 @@ var authScopesCmd = &cobra.Command{
 	Long:  `Display the scopes stored in the current token for an account.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		if authAccount == "" {
-			fatal(cmd.Help())
+			cmd.Help()
+			os.Exit(1)
 			return
 		}
 
