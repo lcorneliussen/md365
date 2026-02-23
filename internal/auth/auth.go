@@ -14,6 +14,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -298,7 +299,12 @@ func DispatchLogin(cfg *config.Config, account string, scopeOverride string, add
 			baseScopes = parseScopes(acc.Scope)
 		}
 
-		finalScope = mergeScopes(baseScopes, addScopes)
+		// Parse addScopes in case user passed space-separated scopes in one flag
+		var parsedAddScopes []string
+		for _, s := range addScopes {
+			parsedAddScopes = append(parsedAddScopes, parseScopes(s)...)
+		}
+		finalScope = mergeScopes(baseScopes, parsedAddScopes)
 	} else {
 		// No flags: use config scope (current behavior)
 		acc, err := cfg.GetAccount(account)
@@ -633,11 +639,12 @@ func mergeScopes(scopeLists ...[]string) string {
 		seen["offline_access"] = "offline_access"
 	}
 
-	// Build result maintaining original case
+	// Build result maintaining original case, sorted for deterministic output
 	result := make([]string, 0, len(seen))
 	for _, original := range seen {
 		result = append(result, original)
 	}
+	sort.Strings(result)
 
 	return strings.Join(result, " ")
 }
