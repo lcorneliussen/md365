@@ -12,9 +12,6 @@ import (
 // DefaultClientID is the official md365 app registration
 const DefaultClientID = "98a465bc-fdca-4ea6-a3b9-a4b819e50a86"
 
-// DefaultClientID is the official md365 app registration (multi-tenant, public client)
-const DefaultClientID = "98a465bc-fdca-4ea6-a3b9-a4b819e50a86"
-
 // Config represents the application configuration
 type Config struct {
 	ClientID string              `yaml:"client_id"`
