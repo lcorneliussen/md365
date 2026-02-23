@@ -1,11 +1,10 @@
 package cmd
 
 import (
-	"bufio"
 	"fmt"
-	"os"
 	"strings"
 
+	"github.com/charmbracelet/huh"
 	"github.com/lcorneliussen/md365/internal/auth"
 	"github.com/lcorneliussen/md365/internal/config"
 	"github.com/spf13/cobra"
@@ -98,77 +97,89 @@ var authAddCmd = &cobra.Command{
 }
 
 func runAuthAdd() error {
-	scanner := bufio.NewScanner(os.Stdin)
+	var (
+		accountName  string
+		emailHint    string
+		authFlow     string
+		scopeChoices []string
+		domainsInput string
+		loginNow     bool
+	)
 
-	// 1. Ask for account name
-	fmt.Print("Account name (short alias like \"work\", \"private\"): ")
-	if !scanner.Scan() {
-		return fmt.Errorf("failed to read account name")
-	}
-	accountName := strings.TrimSpace(scanner.Text())
-	if accountName == "" {
-		return fmt.Errorf("account name cannot be empty")
+	// Create the interactive form
+	form := huh.NewForm(
+		huh.NewGroup(
+			huh.NewInput().
+				Title("Account name").
+				Description("Short alias like \"work\", \"private\"").
+				Value(&accountName).
+				Validate(func(s string) error {
+					if strings.TrimSpace(s) == "" {
+						return fmt.Errorf("account name cannot be empty")
+					}
+					return nil
+				}),
+
+			huh.NewInput().
+				Title("Email hint").
+				Description("e.g. user@company.com").
+				Value(&emailHint),
+		),
+
+		huh.NewGroup(
+			huh.NewSelect[string]().
+				Title("Authentication flow").
+				Options(
+					huh.NewOption("Device Code (default, for most tenants)", "devicecode"),
+					huh.NewOption("Browser-based (PKCE, for tenants that block device code)", "authcode"),
+				).
+				Value(&authFlow),
+		),
+
+		huh.NewGroup(
+			huh.NewMultiSelect[string]().
+				Title("Select permissions").
+				Description("Choose one or more scopes").
+				Options(
+					huh.NewOption("Calendar (read/write)", "Calendars.ReadWrite"),
+					huh.NewOption("Contacts (read/write)", "Contacts.ReadWrite"),
+					huh.NewOption("Mail (send)", "Mail.Send"),
+					huh.NewOption("User profile (read)", "User.Read"),
+				).
+				Value(&scopeChoices),
+		),
+
+		huh.NewGroup(
+			huh.NewInput().
+				Title("Domains").
+				Description("Comma-separated, e.g. company.com,subsidiary.com (optional)").
+				Value(&domainsInput),
+		),
+
+		huh.NewGroup(
+			huh.NewConfirm().
+				Title("Login now?").
+				Value(&loginNow),
+		),
+	)
+
+	// Run the form
+	if err := form.Run(); err != nil {
+		return fmt.Errorf("form cancelled or failed: %w", err)
 	}
 
-	// 2. Ask for email hint
-	fmt.Print("Email hint (e.g. user@company.com): ")
-	if !scanner.Scan() {
-		return fmt.Errorf("failed to read email hint")
-	}
-	emailHint := strings.TrimSpace(scanner.Text())
+	// Process the collected data
+	accountName = strings.TrimSpace(accountName)
+	emailHint = strings.TrimSpace(emailHint)
 
-	// 3. Ask for auth flow
-	fmt.Println("Which authentication flow?")
-	fmt.Println("  [1] Device Code (default, for most tenants)")
-	fmt.Println("  [2] Browser-based (PKCE, for tenants that block device code)")
-	fmt.Print("> ")
-	if !scanner.Scan() {
-		return fmt.Errorf("failed to read auth flow choice")
-	}
-	flowChoice := strings.TrimSpace(scanner.Text())
-	authFlow := "devicecode"
-	if flowChoice == "2" {
-		authFlow = "authcode"
-	}
-
-	// 4. Ask for scopes
-	fmt.Println("Select permissions (comma-separated numbers):")
-	fmt.Println("  [1] Calendar (read/write)")
-	fmt.Println("  [2] Contacts (read/write)")
-	fmt.Println("  [3] Mail (send)")
-	fmt.Println("  [4] User profile (read)")
-	fmt.Print("> ")
-	if !scanner.Scan() {
-		return fmt.Errorf("failed to read scope choices")
-	}
-	scopeChoices := strings.TrimSpace(scanner.Text())
-
-	// Map scope choices to Microsoft Graph permissions
-	scopeMap := map[string]string{
-		"1": "Calendars.ReadWrite",
-		"2": "Contacts.ReadWrite",
-		"3": "Mail.Send",
-		"4": "User.Read",
-	}
-
+	// Build scopes list
 	var scopes []string
-	for _, choice := range strings.Split(scopeChoices, ",") {
-		choice = strings.TrimSpace(choice)
-		if scope, ok := scopeMap[choice]; ok {
-			scopes = append(scopes, scope)
-		}
-	}
-
+	scopes = append(scopes, scopeChoices...)
 	// Always add offline_access
 	scopes = append(scopes, "offline_access")
 	scopeStr := strings.Join(scopes, " ")
 
-	// 5. Ask for domains
-	fmt.Print("Domains for this account (comma-separated, e.g. company.com,subsidiary.com): ")
-	if !scanner.Scan() {
-		return fmt.Errorf("failed to read domains")
-	}
-	domainsInput := strings.TrimSpace(scanner.Text())
+	// Process domains
 	var domains []string
 	if domainsInput != "" {
 		for _, d := range strings.Split(domainsInput, ",") {
@@ -179,7 +190,7 @@ func runAuthAdd() error {
 		}
 	}
 
-	// 6. Create account and save to config
+	// Create account and save to config
 	account := &config.Account{
 		AuthFlow: authFlow,
 		Hint:     emailHint,
@@ -199,13 +210,8 @@ func runAuthAdd() error {
 		fmt.Printf("  Domains: %s\n", strings.Join(domains, ", "))
 	}
 
-	// 7. Ask to login now
-	fmt.Print("\nLogin now? [Y/n] ")
-	if !scanner.Scan() {
-		return nil // Just exit if we can't read
-	}
-	loginChoice := strings.ToLower(strings.TrimSpace(scanner.Text()))
-	if loginChoice == "" || loginChoice == "y" || loginChoice == "yes" {
+	// Login if confirmed
+	if loginNow {
 		// Reload config to get the new account
 		newCfg, err := config.Load()
 		if err != nil {
