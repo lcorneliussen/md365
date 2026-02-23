@@ -14,6 +14,14 @@ var (
 	authAccount  string
 	authScope    string
 	authAddScope []string
+
+	// flags for auth add
+	authAddName    string
+	authAddHint    string
+	authAddFlow    string
+	authAddScopes  string
+	authAddDomains string
+	authAddLogin   bool
 )
 
 // authCmd represents the auth command
@@ -87,8 +95,8 @@ var authScopesCmd = &cobra.Command{
 // authAddCmd represents the auth add command
 var authAddCmd = &cobra.Command{
 	Use:   "add",
-	Short: "Interactively add a new account",
-	Long:  `Interactively set up a new account with authentication configuration.`,
+	Short: "Add a new account (interactively or via flags)",
+	Long:  `Add a new account with authentication configuration. Use flags for non-interactive mode, or omit --name for interactive setup.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		if err := runAuthAdd(); err != nil {
 			fatal(err)
@@ -106,71 +114,101 @@ func runAuthAdd() error {
 		loginNow     bool
 	)
 
-	// Create the interactive form
-	form := huh.NewForm(
-		huh.NewGroup(
-			huh.NewInput().
-				Title("Account name").
-				Description("Short alias like \"work\", \"private\"").
-				Value(&accountName).
-				Validate(func(s string) error {
-					if strings.TrimSpace(s) == "" {
-						return fmt.Errorf("account name cannot be empty")
-					}
-					return nil
-				}),
+	// Check if running in non-interactive mode (--name flag provided)
+	if authAddName != "" {
+		// Non-interactive mode: use flags
+		accountName = strings.TrimSpace(authAddName)
+		emailHint = strings.TrimSpace(authAddHint)
 
-			huh.NewInput().
-				Title("Email hint").
-				Description("e.g. user@company.com").
-				Value(&emailHint),
-		),
+		// Default flow to devicecode if not specified
+		authFlow = authAddFlow
+		if authFlow == "" {
+			authFlow = "devicecode"
+		}
 
-		huh.NewGroup(
-			huh.NewSelect[string]().
-				Title("Authentication flow").
-				Options(
-					huh.NewOption("Device Code (default, for most tenants)", "devicecode"),
-					huh.NewOption("Browser-based (PKCE, for tenants that block device code)", "authcode"),
-				).
-				Value(&authFlow),
-		),
+		// Parse scopes from flag (comma-separated)
+		if authAddScopes != "" {
+			for _, s := range strings.Split(authAddScopes, ",") {
+				scope := strings.TrimSpace(s)
+				if scope != "" {
+					scopeChoices = append(scopeChoices, scope)
+				}
+			}
+		} else {
+			// Default scopes if not specified
+			scopeChoices = []string{"Calendars.ReadWrite", "User.Read"}
+		}
 
-		huh.NewGroup(
-			huh.NewMultiSelect[string]().
-				Title("Select permissions").
-				Description("Choose one or more scopes").
-				Options(
-					huh.NewOption("Calendar (read/write)", "Calendars.ReadWrite"),
-					huh.NewOption("Contacts (read/write)", "Contacts.ReadWrite"),
-					huh.NewOption("Mail (send)", "Mail.Send"),
-					huh.NewOption("User profile (read)", "User.Read"),
-				).
-				Value(&scopeChoices),
-		),
+		domainsInput = authAddDomains
+		loginNow = authAddLogin
+	} else {
+		// Interactive mode: show huh form
+		// Create the interactive form
+		form := huh.NewForm(
+			huh.NewGroup(
+				huh.NewInput().
+					Title("Account name").
+					Description("Short alias like \"work\", \"private\"").
+					Value(&accountName).
+					Validate(func(s string) error {
+						if strings.TrimSpace(s) == "" {
+							return fmt.Errorf("account name cannot be empty")
+						}
+						return nil
+					}),
 
-		huh.NewGroup(
-			huh.NewInput().
-				Title("Domains").
-				Description("Comma-separated, e.g. company.com,subsidiary.com (optional)").
-				Value(&domainsInput),
-		),
+				huh.NewInput().
+					Title("Email hint").
+					Description("e.g. user@company.com").
+					Value(&emailHint),
+			),
 
-		huh.NewGroup(
-			huh.NewConfirm().
-				Title("Login now?").
-				Value(&loginNow),
-		),
-	)
+			huh.NewGroup(
+				huh.NewSelect[string]().
+					Title("Authentication flow").
+					Options(
+						huh.NewOption("Device Code (default, for most tenants)", "devicecode"),
+						huh.NewOption("Browser-based (PKCE, for tenants that block device code)", "authcode"),
+					).
+					Value(&authFlow),
+			),
 
-	// Run the form
-	if err := form.Run(); err != nil {
-		return fmt.Errorf("form cancelled or failed: %w", err)
+			huh.NewGroup(
+				huh.NewMultiSelect[string]().
+					Title("Select permissions").
+					Description("Choose one or more scopes").
+					Options(
+						huh.NewOption("Calendar (read/write)", "Calendars.ReadWrite"),
+						huh.NewOption("Contacts (read/write)", "Contacts.ReadWrite"),
+						huh.NewOption("Mail (send)", "Mail.Send"),
+						huh.NewOption("User profile (read)", "User.Read"),
+					).
+					Value(&scopeChoices),
+			),
+
+			huh.NewGroup(
+				huh.NewInput().
+					Title("Domains").
+					Description("Comma-separated, e.g. company.com,subsidiary.com (optional)").
+					Value(&domainsInput),
+			),
+
+			huh.NewGroup(
+				huh.NewConfirm().
+					Title("Login now?").
+					Value(&loginNow),
+			),
+		)
+
+		// Run the form
+		if err := form.Run(); err != nil {
+			return fmt.Errorf("form cancelled or failed: %w", err)
+		}
+
+		// Process the collected data
+		accountName = strings.TrimSpace(accountName)
+		emailHint = strings.TrimSpace(emailHint)
 	}
-
-	// Process the collected data
-	accountName = strings.TrimSpace(accountName)
-	emailHint = strings.TrimSpace(emailHint)
 
 	// Build scopes list
 	var scopes []string
@@ -230,6 +268,14 @@ func init() {
 	authLoginCmd.Flags().StringSliceVar(&authAddScope, "add-scope", []string{}, "Add scope(s) to existing token scopes")
 	authRefreshCmd.Flags().StringVar(&authAccount, "account", "", "Account name (required)")
 	authScopesCmd.Flags().StringVar(&authAccount, "account", "", "Account name (required)")
+
+	// Flags for auth add (non-interactive mode)
+	authAddCmd.Flags().StringVar(&authAddName, "name", "", "Account name (required for non-interactive mode)")
+	authAddCmd.Flags().StringVar(&authAddHint, "hint", "", "Email hint (e.g., user@company.com)")
+	authAddCmd.Flags().StringVar(&authAddFlow, "flow", "devicecode", "Auth flow: devicecode or authcode")
+	authAddCmd.Flags().StringVar(&authAddScopes, "scopes", "", "Comma-separated scopes (e.g., Calendars.ReadWrite,User.Read)")
+	authAddCmd.Flags().StringVar(&authAddDomains, "domains", "", "Comma-separated domains (e.g., company.com,subsidiary.com)")
+	authAddCmd.Flags().BoolVar(&authAddLogin, "login", false, "Auto-login after creating account")
 
 	authCmd.AddCommand(authLoginCmd)
 	authCmd.AddCommand(authStatusCmd)
