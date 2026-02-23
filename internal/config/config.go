@@ -204,3 +204,42 @@ func containsDomain(domains []string, domain string) bool {
 	}
 	return false
 }
+
+// SaveAccount adds or updates an account in the configuration file
+func SaveAccount(name string, account *Account) error {
+	// Load existing config
+	cfg, err := Load()
+	if err != nil {
+		// If config doesn't exist, create a minimal one
+		if os.IsNotExist(err) {
+			return fmt.Errorf("configuration file not found: %s\nPlease create a config file with at least client_id set", configFile)
+		}
+		return fmt.Errorf("failed to load config: %w", err)
+	}
+
+	// Initialize accounts map if needed
+	if cfg.Accounts == nil {
+		cfg.Accounts = make(map[string]*Account)
+	}
+
+	// Add or update account
+	cfg.Accounts[name] = account
+
+	// Ensure config directory exists
+	if err := os.MkdirAll(configDir, 0755); err != nil {
+		return fmt.Errorf("failed to create config directory: %w", err)
+	}
+
+	// Marshal to YAML
+	data, err := yaml.Marshal(cfg)
+	if err != nil {
+		return fmt.Errorf("failed to marshal config: %w", err)
+	}
+
+	// Write to file
+	if err := os.WriteFile(configFile, data, 0600); err != nil {
+		return fmt.Errorf("failed to write config file: %w", err)
+	}
+
+	return nil
+}

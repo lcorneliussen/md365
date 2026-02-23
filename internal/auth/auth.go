@@ -14,6 +14,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -52,6 +53,7 @@ type TokenResponse struct {
 	AccessToken  string `json:"access_token"`
 	RefreshToken string `json:"refresh_token"`
 	ExpiresIn    int    `json:"expires_in"`
+	Scope        string `json:"scope,omitempty"`
 	Error        string `json:"error,omitempty"`
 	ErrorDesc    string `json:"error_description,omitempty"`
 }
@@ -113,12 +115,17 @@ func RefreshToken(cfg *config.Config, account string) error {
 		return fmt.Errorf("error refreshing token: %s - %s", tokenResp.Error, tokenResp.ErrorDesc)
 	}
 
-	// Save new token
+	// Save new token - use granted scopes from response, fallback to existing if not provided
+	grantedScope := tokenResp.Scope
+	if grantedScope == "" {
+		grantedScope = token.Scope
+	}
+
 	newToken := Token{
 		AccessToken:  tokenResp.AccessToken,
 		RefreshToken: tokenResp.RefreshToken,
 		ExpiresOn:    time.Now().Unix() + int64(tokenResp.ExpiresIn),
-		Scope:        token.Scope,
+		Scope:        grantedScope,
 	}
 
 	if err := saveToken(account, &newToken); err != nil {
@@ -130,7 +137,7 @@ func RefreshToken(cfg *config.Config, account string) error {
 }
 
 // Login performs device code flow authentication
-func Login(cfg *config.Config, account string) error {
+func Login(cfg *config.Config, account string, scope string) error {
 	acc, err := cfg.GetAccount(account)
 	if err != nil {
 		return err
@@ -141,7 +148,7 @@ func Login(cfg *config.Config, account string) error {
 	// Start device code flow
 	data := url.Values{
 		"client_id": {cfg.GetClientID(account)},
-		"scope":     {acc.Scope},
+		"scope":     {scope},
 	}
 
 	resp, err := http.PostForm(deviceCodeURL, data)
@@ -213,12 +220,17 @@ func Login(cfg *config.Config, account string) error {
 			interval += 5 * time.Second
 			continue
 		case "":
-			// Success!
+			// Success! Use granted scopes from response, fallback to requested if not provided
+			grantedScope := token.Scope
+			if grantedScope == "" {
+				grantedScope = scope
+			}
+
 			newToken := Token{
 				AccessToken:  token.AccessToken,
 				RefreshToken: token.RefreshToken,
 				ExpiresOn:    time.Now().Unix() + int64(token.ExpiresIn),
-				Scope:        acc.Scope,
+				Scope:        grantedScope,
 			}
 
 			if err := saveToken(account, &newToken); err != nil {
@@ -263,20 +275,58 @@ func getFreePort() (int, error) {
 }
 
 // DispatchLogin performs authentication using the configured flow for the account
-func DispatchLogin(cfg *config.Config, account string) error {
+func DispatchLogin(cfg *config.Config, account string, scopeOverride string, addScopes []string) error {
+	// Determine final scopes based on priority
+	var finalScope string
+
+	if scopeOverride != "" {
+		// --scope flag takes precedence over everything
+		finalScope = mergeScopes(parseScopes(scopeOverride))
+	} else if len(addScopes) > 0 {
+		// --add-scope merges with existing token scopes (if any) or config scopes
+		var baseScopes []string
+
+		// Try to get existing token scopes
+		token, err := loadToken(account)
+		if err == nil && token.Scope != "" {
+			baseScopes = parseScopes(token.Scope)
+		} else {
+			// Fall back to config scopes
+			acc, err := cfg.GetAccount(account)
+			if err != nil {
+				return err
+			}
+			baseScopes = parseScopes(acc.Scope)
+		}
+
+		// Parse addScopes in case user passed space-separated scopes in one flag
+		var parsedAddScopes []string
+		for _, s := range addScopes {
+			parsedAddScopes = append(parsedAddScopes, parseScopes(s)...)
+		}
+		finalScope = mergeScopes(baseScopes, parsedAddScopes)
+	} else {
+		// No flags: use config scope (current behavior)
+		acc, err := cfg.GetAccount(account)
+		if err != nil {
+			return err
+		}
+		finalScope = mergeScopes(parseScopes(acc.Scope))
+	}
+
 	authFlow := cfg.GetAuthFlow(account)
 	switch authFlow {
 	case "authcode":
-		return LoginAuthCode(cfg, account)
+		return LoginAuthCode(cfg, account, finalScope)
 	case "devicecode":
-		return Login(cfg, account)
+		return Login(cfg, account, finalScope)
 	default:
 		return fmt.Errorf("unknown auth_flow '%s' for account '%s'. Valid values: devicecode, authcode", authFlow, account)
 	}
 }
 
 // LoginAuthCode performs authorization code flow with PKCE
-func LoginAuthCode(cfg *config.Config, account string) error {
+func LoginAuthCode(cfg *config.Config, account string, scope string) error {
 	acc, err := cfg.GetAccount(account)
 	if err != nil {
 		return err
@@ -309,7 +359,7 @@ func LoginAuthCode(cfg *config.Config, account string) error {
 		"client_id":             {cfg.GetClientID(account)},
 		"response_type":         {"code"},
 		"redirect_uri":          {redirectURI},
-		"scope":                 {acc.Scope},
+		"scope":                 {scope},
 		"code_challenge":        {codeChallenge},
 		"code_challenge_method": {"S256"},
 	}
@@ -424,12 +474,17 @@ func LoginAuthCode(cfg *config.Config, account string) error {
 		return fmt.Errorf("token error: %s - %s", tokenResp.Error, tokenResp.ErrorDesc)
 	}
 
-	// Save token
+	// Save token - use granted scopes from response, fallback to requested if not provided
+	grantedScope := tokenResp.Scope
+	if grantedScope == "" {
+		grantedScope = scope
+	}
+
 	newToken := Token{
 		AccessToken:  tokenResp.AccessToken,
 		RefreshToken: tokenResp.RefreshToken,
 		ExpiresOn:    time.Now().Unix() + int64(tokenResp.ExpiresIn),
-		Scope:        acc.Scope,
+		Scope:        grantedScope,
 	}
 
 	if err := saveToken(account, &newToken); err != nil {
@@ -447,18 +502,27 @@ func Status(cfg *config.Config) {
 	fmt.Println()
 
 	for _, account := range cfg.ListAccounts() {
+		authFlow := cfg.GetAuthFlow(account)
 		token, err := loadToken(account)
 		if err != nil {
-			fmt.Printf("  %s: NOT AUTHENTICATED\n", account)
+			fmt.Printf("  %s: NOT AUTHENTICATED [%s]\n", account, authFlow)
 			continue
 		}
 
 		if token.ExpiresOn > time.Now().Unix() {
 			remaining := time.Duration(token.ExpiresOn-time.Now().Unix()) * time.Second
 			hours := int(remaining.Hours())
-			fmt.Printf("  %s: Valid (expires in %dh)\n", account, hours)
+			fmt.Printf("  %s: Valid (expires in %dh) [%s]\n", account, hours, authFlow)
+			// Show scopes
+			if token.Scope != "" {
+				fmt.Printf("    Scopes: %s\n", token.Scope)
+			}
 		} else {
-			fmt.Printf("  %s: EXPIRED\n", account)
+			fmt.Printf("  %s: EXPIRED [%s]\n", account, authFlow)
+			// Show scopes even if expired
+			if token.Scope != "" {
+				fmt.Printf("    Scopes: %s\n", token.Scope)
+			}
 		}
 	}
 }
@@ -543,4 +607,76 @@ func GenerateUniqueFilename(dir, baseName, ext string) string {
 // DeleteToken removes a token from keyring
 func DeleteToken(account string) error {
 	return keyring.Delete(keyringService, account)
+}
+
+// parseScopes splits a scope string into individual scopes
+func parseScopes(scopeStr string) []string {
+	if scopeStr == "" {
+		return []string{}
+	}
+	scopes := strings.Fields(scopeStr)
+	result := make([]string, 0, len(scopes))
+	for _, s := range scopes {
+		s = strings.TrimSpace(s)
+		if s != "" {
+			result = append(result, s)
+		}
+	}
+	return result
+}
+
+// normalizeScope converts scope to lowercase for comparison
+func normalizeScope(scope string) string {
+	return strings.ToLower(strings.TrimSpace(scope))
+}
+
+// mergeScopes merges multiple scope lists, deduplicating (case-insensitive)
+// Always ensures offline_access is included
+func mergeScopes(scopeLists ...[]string) string {
+	seen := make(map[string]string) // normalized -> original
+	for _, scopes := range scopeLists {
+		for _, scope := range scopes {
+			normalized := normalizeScope(scope)
+			if _, exists := seen[normalized]; !exists {
+				seen[normalized] = scope
+			}
+		}
+	}
+
+	// Ensure offline_access is present
+	if _, exists := seen["offline_access"]; !exists {
+		seen["offline_access"] = "offline_access"
+	}
+
+	// Build result maintaining original case, sorted for deterministic output
+	result := make([]string, 0, len(seen))
+	for _, original := range seen {
+		result = append(result, original)
+	}
+	sort.Strings(result)
+
+	return strings.Join(result, " ")
+}
+
+// ShowScopes displays the scopes for an account
+func ShowScopes(account string) error {
+	token, err := loadToken(account)
+	if err != nil {
+		fmt.Printf("No token found for account '%s'\n", account)
+		fmt.Printf("Run: md365 auth login --account %s\n", account)
+		return nil
+	}
+
+	scopes := parseScopes(token.Scope)
+	if len(scopes) == 0 {
+		fmt.Printf("No scopes stored for account '%s'\n", account)
+		return nil
+	}
+
+	fmt.Printf("Scopes for account '%s':\n", account)
+	for _, scope := range scopes {
+		fmt.Printf("  - %s\n", scope)
+	}
+
+	return nil
 }
