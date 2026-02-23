@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/charmbracelet/huh"
@@ -127,12 +128,21 @@ func runAuthAdd() error {
 	if !Interactive {
 		// Non-interactive mode: use flags
 		accountName = strings.TrimSpace(authAddName)
+
+		// Validate account name (used in file paths / keyring keys)
+		if !regexp.MustCompile(`^[a-zA-Z0-9_-]+$`).MatchString(accountName) {
+			return fmt.Errorf("account name must contain only letters, numbers, dashes, and underscores")
+		}
+
 		emailHint = strings.TrimSpace(authAddHint)
 
-		// Default flow to devicecode if not specified
+		// Validate and set auth flow
 		authFlow = authAddFlow
 		if authFlow == "" {
 			authFlow = "devicecode"
+		}
+		if authFlow != "devicecode" && authFlow != "authcode" {
+			return fmt.Errorf("invalid --flow: must be 'devicecode' or 'authcode'")
 		}
 
 		// Parse scopes from flag (comma-separated)
