@@ -129,40 +129,57 @@ Sending from `personal` to `colleague@company.com` will be blocked with a sugges
 
 ## Setup
 
-### 1. Register an Azure AD App
+### 1. Add an Account
 
-1. [Azure Portal](https://portal.azure.com) → App registrations → New registration
-2. Supported account types: "Accounts in any organizational directory and personal Microsoft accounts"
-3. Enable "Allow public client flows" under Authentication
-4. Add delegated API permissions: `Calendars.ReadWrite`, `Contacts.ReadWrite`, `User.Read`, `Mail.Send` (optional)
+Interactive setup (guided TUI):
+```bash
+md365 auth add -i
+```
 
-### 2. Configure
+Or non-interactive (AI-friendly):
+```bash
+md365 auth add --name work --hint you@company.com \
+  --scopes "Calendars.ReadWrite,Contacts.ReadWrite,User.Read,Mail.Send" \
+  --domains "company.com" --login
+```
 
-Create `~/.config/md365/config.yaml`:
+md365 ships with a built-in app registration — no Azure setup needed. If your tenant requires a custom app, you can set `client_id` per account in the config.
+
+### 2. Login and Sync
+
+```bash
+md365 auth login --account work
+md365 sync
+```
+
+### Auth Flows
+
+Most tenants work with the default **Device Code Flow**. If your tenant blocks it (Conditional Access), use **Authorization Code Flow with PKCE**:
 
 ```yaml
 accounts:
   work:
-    client_id: "YOUR_APP_CLIENT_ID"
+    auth_flow: authcode    # opens browser instead of device code
+    hint: you@company.com
+    scope: "offline_access Calendars.ReadWrite User.Read"
+```
+
+### Configuration
+
+Config lives at `~/.config/md365/config.yaml`:
+
+```yaml
+accounts:
+  work:
     hint: "you@company.com"
     scope: "offline_access Calendars.ReadWrite Contacts.ReadWrite User.Read Mail.Send"
     domains:
       - company.com
   personal:
-    client_id: "YOUR_APP_CLIENT_ID"
     hint: "you@outlook.com"
     scope: "offline_access Calendars.ReadWrite Contacts.ReadWrite User.Read"
     domains:
       - gmail.com
-```
-
-You can use the same or different `client_id` per account.
-
-### 3. Login and sync
-
-```bash
-md365 auth login --account work
-md365 sync
 ```
 
 ## Token Storage
@@ -173,10 +190,34 @@ The `offline_access` scope enables refresh tokens, so you only need to log in on
 
 ## Installation
 
+### Homebrew (macOS & Linux)
+
+```bash
+brew install lcorneliussen/md365/md365
+```
+
+### AUR (Arch Linux)
+
+```bash
+yay -S md365-bin
+```
+
+### Go Install
+
+```bash
+go install github.com/lcorneliussen/md365@latest
+```
+
+### GitHub Releases
+
+Download pre-built binaries for Linux, macOS, and Windows from [Releases](https://github.com/lcorneliussen/md365/releases).
+
+### Build from Source
+
 ```bash
 git clone https://github.com/lcorneliussen/md365.git
 cd md365
-go build -o ~/.local/bin/md365 .
+go build -o md365 .
 ```
 
 ## Sync Details
