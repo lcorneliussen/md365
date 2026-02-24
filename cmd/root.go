@@ -23,7 +23,7 @@ Syncs calendars and contacts as plain Markdown files with YAML frontmatter.
 Write operations go through Microsoft Graph API.`,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 		// Skip config loading for commands that don't need it
-		if cmd.Name() == "help" || cmd.Name() == "md365" {
+		if cmd.Name() == "help" || cmd.Name() == "md365" || cmd.Name() == "add" {
 			return nil
 		}
 

@@ -211,14 +211,15 @@ func containsDomain(domains []string, domain string) bool {
 
 // SaveAccount adds or updates an account in the configuration file
 func SaveAccount(name string, account *Account) error {
-	// Load existing config
+	// Load existing config or create minimal one
 	cfg, err := Load()
 	if err != nil {
-		// If config doesn't exist, create a minimal one
-		if os.IsNotExist(err) {
-			return fmt.Errorf("configuration file not found: %s\nPlease create a config file with at least client_id set", configFile)
+		// Create a new config if file doesn't exist
+		cfg = &Config{
+			ClientID: DefaultClientID,
+			Timezone: "Europe/Berlin",
+			Accounts: make(map[string]*Account),
 		}
-		return fmt.Errorf("failed to load config: %w", err)
 	}
 
 	// Initialize accounts map if needed
