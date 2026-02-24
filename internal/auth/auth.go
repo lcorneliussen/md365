@@ -527,32 +527,67 @@ func Status(cfg *config.Config) {
 	}
 }
 
-// loadToken loads a token from keyring
+// tokenFilePath returns the file path for file-based token storage
+func tokenFilePath(account string) string {
+	xdgConfig := os.Getenv("XDG_CONFIG_HOME")
+	if xdgConfig == "" {
+		xdgConfig = filepath.Join(os.Getenv("HOME"), ".config")
+	}
+	return filepath.Join(xdgConfig, "md365", "tokens", account+".json")
+}
+
+// loadToken loads a token from keyring, falling back to file
 func loadToken(account string) (*Token, error) {
+	// Try keyring first
 	tokenJSON, err := keyring.Get(keyringService, account)
-	if err != nil {
-		return nil, fmt.Errorf("no token in keyring for '%s': %w", account, err)
+	if err == nil {
+		var token Token
+		if err := json.Unmarshal([]byte(tokenJSON), &token); err != nil {
+			return nil, fmt.Errorf("corrupted token in keyring for '%s': %w", account, err)
+		}
+		return &token, nil
+	}
+
+	// Fall back to file
+	data, fileErr := os.ReadFile(tokenFilePath(account))
+	if fileErr != nil {
+		return nil, fmt.Errorf("no token found for '%s' (keyring: %w)", account, err)
 	}
 
 	var token Token
-	if err := json.Unmarshal([]byte(tokenJSON), &token); err != nil {
-		return nil, fmt.Errorf("corrupted token in keyring for '%s': %w", account, err)
+	if err := json.Unmarshal(data, &token); err != nil {
+		return nil, fmt.Errorf("corrupted token file for '%s': %w", account, err)
 	}
-
 	return &token, nil
 }
 
-// saveToken saves a token to keyring
+// saveToken saves a token to keyring, falling back to file
 func saveToken(account string, token *Token) error {
 	data, err := json.MarshalIndent(token, "", "  ")
 	if err != nil {
 		return err
 	}
 
+	// Try keyring first
 	if err := keyring.Set(keyringService, account, string(data)); err != nil {
-		return fmt.Errorf("failed to save token to keyring: %w\n\nEnsure a keyring daemon (e.g. gnome-keyring, kwallet) is running", err)
+		// Fall back to file storage
+		fmt.Fprintf(os.Stderr, "Warning: keyring storage failed, using file fallback: %v\n", err)
+		return saveTokenFile(account, data)
 	}
 
+	return nil
+}
+
+// saveTokenFile saves token data to a file with restricted permissions
+func saveTokenFile(account string, data []byte) error {
+	path := tokenFilePath(account)
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0700); err != nil {
+		return fmt.Errorf("failed to create token directory: %w", err)
+	}
+	if err := os.WriteFile(path, data, 0600); err != nil {
+		return fmt.Errorf("failed to write token file: %w", err)
+	}
 	return nil
 }
 
