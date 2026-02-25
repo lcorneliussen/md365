@@ -27,21 +27,21 @@ func NewClient(token string) *Client {
 
 // Event represents a calendar event
 type Event struct {
-	ID                   string    `json:"id"`
-	Subject              string    `json:"subject"`
-	Start                DateTime  `json:"start"`
-	End                  DateTime  `json:"end"`
-	IsAllDay             bool      `json:"isAllDay"`
-	Location             Location  `json:"location"`
-	Organizer            Organizer `json:"organizer"`
-	Attendees            []Attendee `json:"attendees"`
-	ResponseStatus       Response  `json:"responseStatus"`
-	IsOnlineMeeting      bool      `json:"isOnlineMeeting"`
-	OnlineMeeting        *OnlineMeeting `json:"onlineMeeting"`
-	Categories           []string  `json:"categories"`
-	Sensitivity          string    `json:"sensitivity"`
-	LastModifiedDateTime string    `json:"lastModifiedDateTime"`
-	Body                 Body      `json:"body"`
+	ID                   string         `json:"id,omitempty"`
+	Subject              string         `json:"subject"`
+	Start                DateTime       `json:"start"`
+	End                  DateTime       `json:"end"`
+	IsAllDay             bool           `json:"isAllDay,omitempty"`
+	Location             *Location      `json:"location,omitempty"`
+	Organizer            *Organizer     `json:"organizer,omitempty"`
+	Attendees            []Attendee     `json:"attendees,omitempty"`
+	ResponseStatus       *Response      `json:"responseStatus,omitempty"`
+	IsOnlineMeeting      bool           `json:"isOnlineMeeting,omitempty"`
+	OnlineMeeting        *OnlineMeeting `json:"onlineMeeting,omitempty"`
+	Categories           []string       `json:"categories,omitempty"`
+	Sensitivity          string         `json:"sensitivity,omitempty"`
+	LastModifiedDateTime string         `json:"lastModifiedDateTime,omitempty"`
+	Body                 *Body          `json:"body,omitempty"`
 }
 
 // DateTime represents a date/time

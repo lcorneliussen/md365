@@ -63,17 +63,20 @@ func WriteEventFile(cfg *config.Config, account string, event *graph.Event) (str
 		"start":         event.Start.DateTime + "Z",
 		"end":           event.End.DateTime + "Z",
 		"all_day":       event.IsAllDay,
-		"response":      event.ResponseStatus.Response,
 		"online_meeting": event.IsOnlineMeeting,
 		"sensitivity":   event.Sensitivity,
 		"last_modified": event.LastModifiedDateTime,
 	}
 
-	if event.Location.DisplayName != "" {
+	if event.ResponseStatus != nil {
+		fm["response"] = event.ResponseStatus.Response
+	}
+
+	if event.Location != nil && event.Location.DisplayName != "" {
 		fm["location"] = event.Location.DisplayName
 	}
 
-	if event.Organizer.EmailAddress.Address != "" {
+	if event.Organizer != nil && event.Organizer.EmailAddress.Address != "" {
 		fm["organizer"] = event.Organizer.EmailAddress.Format()
 	}
 
@@ -100,7 +103,11 @@ func WriteEventFile(cfg *config.Config, account string, event *graph.Event) (str
 	}
 
 	// Convert body HTML to markdown
-	body := graph.HTMLToMarkdown(event.Body.Content)
+	var bodyContent string
+	if event.Body != nil {
+		bodyContent = event.Body.Content
+	}
+	body := graph.HTMLToMarkdown(bodyContent)
 
 	// Write file
 	content := fmt.Sprintf("---\n%s---\n\n# %s\n\n%s\n", string(fmData), event.Subject, body)

@@ -157,20 +157,20 @@ func Create(cfg *config.Config, account, subject, start, end, location, body str
 		Subject: subject,
 		Start: graph.DateTime{
 			DateTime: start,
-			TimeZone: "UTC",
+			TimeZone: cfg.Timezone,
 		},
 		End: graph.DateTime{
 			DateTime: end,
-			TimeZone: "UTC",
+			TimeZone: cfg.Timezone,
 		},
 	}
 
 	if location != "" {
-		event.Location = graph.Location{DisplayName: location}
+		event.Location = &graph.Location{DisplayName: location}
 	}
 
 	if body != "" {
-		event.Body = graph.Body{
+		event.Body = &graph.Body{
 			ContentType: "text",
 			Content:     body,
 		}
