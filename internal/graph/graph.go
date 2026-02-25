@@ -134,8 +134,9 @@ type ErrorResponse struct {
 
 // GetCalendarView retrieves calendar events in a date range
 func (c *Client) GetCalendarView(startDate, endDate time.Time) ([]Event, error) {
-	start := startDate.UTC().Format("2006-01-02T15:04:05")
-	end := endDate.UTC().Format("2006-01-02T15:04:05")
+	// Format dates in their current timezone (don't convert to UTC)
+	start := startDate.Format("2006-01-02T15:04:05")
+	end := endDate.Format("2006-01-02T15:04:05")
 
 	url := fmt.Sprintf("%s/me/calendarview?startDateTime=%s&endDateTime=%s", baseURL, start, end)
 

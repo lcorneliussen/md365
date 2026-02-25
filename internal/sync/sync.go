@@ -21,10 +21,21 @@ type SyncState struct {
 }
 
 // WriteEventFile writes a calendar event to a markdown file
-func WriteEventFile(cfg *config.Config, account string, event *graph.Event) (string, error) {
+func WriteEventFile(cfg *config.Config, account string, event *graph.Event, timezone string) (string, error) {
 	calDir := filepath.Join(cfg.DataDir, account, "calendar")
 	if err := os.MkdirAll(calDir, 0755); err != nil {
 		return "", fmt.Errorf("failed to create calendar directory: %w", err)
+	}
+
+	// Convert start/end times from Graph API format to RFC3339 in configured timezone
+	startRFC3339, err := convertGraphTimeToRFC3339(event.Start.DateTime, event.Start.TimeZone, timezone)
+	if err != nil {
+		return "", fmt.Errorf("failed to convert start time: %w", err)
+	}
+
+	endRFC3339, err := convertGraphTimeToRFC3339(event.End.DateTime, event.End.TimeZone, timezone)
+	if err != nil {
+		return "", fmt.Errorf("failed to convert end time: %w", err)
 	}
 
 	// Generate the desired filename based on current event data
@@ -60,8 +71,8 @@ func WriteEventFile(cfg *config.Config, account string, event *graph.Event) (str
 		"id":            event.ID,
 		"account":       account,
 		"subject":       event.Subject,
-		"start":         event.Start.DateTime + "Z",
-		"end":           event.End.DateTime + "Z",
+		"start":         startRFC3339,
+		"end":           endRFC3339,
 		"all_day":       event.IsAllDay,
 		"online_meeting": event.IsOnlineMeeting,
 		"sensitivity":   event.Sensitivity,
@@ -254,7 +265,7 @@ func SyncCalendar(cfg *config.Config, account string, token string) error {
 
 	// Write events
 	for _, event := range events {
-		path, err := WriteEventFile(cfg, account, &event)
+		path, err := WriteEventFile(cfg, account, &event, cfg.Timezone)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Warning: failed to write event %s: %v\n", event.ID, err)
 			continue
@@ -463,4 +474,37 @@ func updateSyncState(dataDir, account, deltaLink, lastSync string) error {
 	}
 
 	return os.WriteFile(syncFile, data, 0644)
+}
+
+// convertGraphTimeToRFC3339 converts a Graph API DateTime+TimeZone pair to RFC3339 in the target timezone
+// Graph API format: "2026-02-28T19:15:00.0000000" with separate "Europe/Berlin" timezone field
+func convertGraphTimeToRFC3339(dateTimeStr, sourceTimeZone, targetTimeZone string) (string, error) {
+	// Load source timezone
+	sourceLoc, err := time.LoadLocation(sourceTimeZone)
+	if err != nil {
+		return "", fmt.Errorf("invalid source timezone %s: %w", sourceTimeZone, err)
+	}
+
+	// Load target timezone
+	targetLoc, err := time.LoadLocation(targetTimeZone)
+	if err != nil {
+		return "", fmt.Errorf("invalid target timezone %s: %w", targetTimeZone, err)
+	}
+
+	// Parse the Graph API DateTime (without timezone info)
+	// Graph returns format like "2026-02-28T19:15:00.0000000"
+	t, err := time.ParseInLocation("2006-01-02T15:04:05.0000000", dateTimeStr, sourceLoc)
+	if err != nil {
+		// Try without fractional seconds
+		t, err = time.ParseInLocation("2006-01-02T15:04:05", dateTimeStr, sourceLoc)
+		if err != nil {
+			return "", fmt.Errorf("failed to parse datetime %s: %w", dateTimeStr, err)
+		}
+	}
+
+	// Convert to target timezone
+	targetTime := t.In(targetLoc)
+
+	// Format as RFC3339
+	return targetTime.Format(time.RFC3339), nil
 }

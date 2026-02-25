@@ -194,7 +194,7 @@ func Create(cfg *config.Config, account, subject, start, end, location, body str
 	}
 
 	// Write to local file
-	filePath, err := sync.WriteEventFile(cfg, account, created)
+	filePath, err := sync.WriteEventFile(cfg, account, created, cfg.Timezone)
 	if err != nil {
 		return fmt.Errorf("event created but failed to write local file: %w", err)
 	}
