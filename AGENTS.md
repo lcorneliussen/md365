@@ -37,13 +37,18 @@ Account names (not emails!) are used for all commands:
 GoReleaser handles everything. **Do NOT use `gh release create`.**
 
 1. Commit with conventional commit messages (`fix:`, `feat:`, etc.)
-2. Tag: `git tag v0.x.x`
+2. Annotated tag with human-readable release notes:
+   ```bash
+   git tag -a v0.x.x -m "Short title
+
+   - What changed, in user-facing language
+   - Not just commit messages — explain what it means"
+   ```
 3. Push: `git push && git push origin v0.x.x`
 4. GoReleaser (GitHub Actions) automatically:
    - Builds binaries (linux/darwin/windows × amd64/arm64)
-   - Creates GitHub Release with changelog from commits
+   - Creates GitHub Release using the tag annotation as notes
    - Updates Homebrew tap (lcorneliussen/homebrew-md365)
-5. If notes need editing after: `gh release edit v0.x.x --notes "..."`
 
 ## Architecture
 ```
