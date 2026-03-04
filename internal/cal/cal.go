@@ -135,6 +135,40 @@ func List(cfg *config.Config, fromDate, toDate time.Time, search, account string
 	return nil
 }
 
+// parseFlexibleDateTime parses various datetime formats and converts to the configured timezone
+func parseFlexibleDateTime(input, timezoneName string) (string, error) {
+	loc, err := time.LoadLocation(timezoneName)
+	if err != nil {
+		return "", fmt.Errorf("failed to load timezone %s: %w", timezoneName, err)
+	}
+
+	// Try parsing various formats
+	formats := []string{
+		time.RFC3339,                // "2026-03-04T10:00:00+01:00"
+		"2006-01-02T15:04:05",       // "2026-03-04T10:00:00"
+		"2006-01-02 15:04",          // "2026-03-04 10:00"
+	}
+
+	var parsed time.Time
+	for _, format := range formats {
+		t, err := time.Parse(format, input)
+		if err == nil {
+			parsed = t
+			break
+		}
+	}
+
+	if parsed.IsZero() {
+		return "", fmt.Errorf("unable to parse datetime: %s", input)
+	}
+
+	// Convert to configured timezone
+	inZone := parsed.In(loc)
+
+	// Format without offset for Graph API
+	return inZone.Format("2006-01-02T15:04:05.0000000"), nil
+}
+
 // Create creates a new calendar event
 func Create(cfg *config.Config, account, subject, start, end, location, body string, attendees []string, force bool) error {
 	// Check cross-tenant unless force is enabled
@@ -150,17 +184,28 @@ func Create(cfg *config.Config, account, subject, start, end, location, body str
 		return err
 	}
 
+	// Parse and convert datetimes to configured timezone
+	startDateTime, err := parseFlexibleDateTime(start, cfg.Timezone)
+	if err != nil {
+		return fmt.Errorf("invalid start datetime: %w", err)
+	}
+
+	endDateTime, err := parseFlexibleDateTime(end, cfg.Timezone)
+	if err != nil {
+		return fmt.Errorf("invalid end datetime: %w", err)
+	}
+
 	// Create event
 	client := graph.NewClient(token)
 
 	event := &graph.Event{
 		Subject: subject,
 		Start: graph.DateTime{
-			DateTime: start,
+			DateTime: startDateTime,
 			TimeZone: cfg.Timezone,
 		},
 		End: graph.DateTime{
-			DateTime: end,
+			DateTime: endDateTime,
 			TimeZone: cfg.Timezone,
 		},
 	}
