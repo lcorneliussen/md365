@@ -99,9 +99,12 @@ func RefreshToken(cfg *config.Config, account string) error {
 		return fmt.Errorf("no token found for account '%s'", account)
 	}
 
+	// Sanitize scope: remove .default when specific scopes are present
+	cleanScope := mergeScopes(parseScopes(token.Scope))
+
 	data := url.Values{
 		"client_id":     {cfg.GetClientID(account)},
-		"scope":         {token.Scope},
+		"scope":         {cleanScope},
 		"refresh_token": {token.RefreshToken},
 		"grant_type":    {"refresh_token"},
 	}
@@ -691,6 +694,7 @@ func normalizeScope(scope string) string {
 
 // mergeScopes merges multiple scope lists, deduplicating (case-insensitive)
 // Always ensures offline_access is included
+// Filters out .default scope when resource-specific scopes are present
 func mergeScopes(scopeLists ...[]string) string {
 	seen := make(map[string]string) // normalized -> original
 	for _, scopes := range scopeLists {
@@ -705,6 +709,23 @@ func mergeScopes(scopeLists ...[]string) string {
 	// Ensure offline_access is present
 	if _, exists := seen["offline_access"]; !exists {
 		seen["offline_access"] = "offline_access"
+	}
+
+	// Remove .default scope if resource-specific scopes are present
+	// Microsoft rejects .default combined with specific scopes on refresh
+	hasSpecific := false
+	for normalized := range seen {
+		if strings.Contains(normalized, "/") && !strings.HasSuffix(normalized, "/.default") {
+			hasSpecific = true
+			break
+		}
+	}
+	if hasSpecific {
+		for normalized := range seen {
+			if strings.HasSuffix(normalized, "/.default") {
+				delete(seen, normalized)
+			}
+		}
 	}
 
 	// Build result maintaining original case, sorted for deterministic output
