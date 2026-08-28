@@ -21,24 +21,51 @@ type ListOptions struct {
 	Limit    int
 }
 
+type MessageInfo struct {
+	ID               string   `json:"id"`
+	Account          string   `json:"account"`
+	Subject          string   `json:"subject"`
+	From             string   `json:"from,omitempty"`
+	To               []string `json:"to,omitempty"`
+	CC               []string `json:"cc,omitempty"`
+	ReceivedDateTime string   `json:"received,omitempty"`
+	SentDateTime     string   `json:"sent,omitempty"`
+	IsRead           bool     `json:"is_read"`
+	HasAttachments   bool     `json:"has_attachments"`
+	BodyPreview      string   `json:"body_preview,omitempty"`
+	ConversationID   string   `json:"conversation_id,omitempty"`
+	WebLink          string   `json:"web_link,omitempty"`
+	BodyMarkdown     string   `json:"body_markdown,omitempty"`
+}
+
+type AttachmentInfo struct {
+	ID          string `json:"id"`
+	Account     string `json:"account"`
+	MessageID   string `json:"message_id"`
+	Name        string `json:"name"`
+	ContentType string `json:"content_type,omitempty"`
+	Size        int    `json:"size,omitempty"`
+	IsInline    bool   `json:"is_inline,omitempty"`
+}
+
 // List lists mailbox messages via Microsoft Graph API
-func List(cfg *config.Config, account string, opts ListOptions) error {
+func List(cfg *config.Config, account string, opts ListOptions) ([]MessageInfo, error) {
 	if account == "" {
-		return fmt.Errorf("--account is required")
+		return nil, fmt.Errorf("--account is required")
 	}
 
 	token, err := auth.GetAccessToken(cfg, account)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	since, err := parseDay(opts.Since, cfg.Timezone, false)
 	if err != nil {
-		return fmt.Errorf("invalid --since: %w", err)
+		return nil, fmt.Errorf("invalid --since: %w", err)
 	}
 	until, err := parseDay(opts.Until, cfg.Timezone, true)
 	if err != nil {
-		return fmt.Errorf("invalid --until: %w", err)
+		return nil, fmt.Errorf("invalid --until: %w", err)
 	}
 
 	client := graph.NewClient(token)
@@ -52,103 +79,102 @@ func List(cfg *config.Config, account string, opts ListOptions) error {
 		Limit:    opts.Limit,
 	})
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	loc, err := time.LoadLocation(cfg.Timezone)
-	if err != nil {
-		loc = time.UTC
-	}
-
+	results := make([]MessageInfo, 0, len(messages))
 	for _, msg := range messages {
-		received := formatReceived(msg.ReceivedDateTime, loc)
-		from := ""
-		if msg.From != nil {
-			from = msg.From.EmailAddress.Format()
-		}
-
-		flags := []string{}
-		if !msg.IsRead {
-			flags = append(flags, "unread")
-		}
-		if msg.HasAttachments {
-			flags = append(flags, "attach")
-		}
-		flagStr := ""
-		if len(flags) > 0 {
-			flagStr = "  [" + strings.Join(flags, " ") + "]"
-		}
-
-		fmt.Printf("%s  %s  %s%s\n", received, pad(from, 36), msg.Subject, flagStr)
-		fmt.Printf("  %s\n", msg.ID)
+		results = append(results, messageInfoFromGraph(account, msg, false))
 	}
-
-	if len(messages) == 0 {
-		fmt.Println("No messages found")
-	}
-
-	return nil
+	return results, nil
 }
 
 // Get prints a single message as Markdown
-func Get(cfg *config.Config, account, id string) error {
+func Get(cfg *config.Config, account, id string) (*MessageInfo, error) {
 	if account == "" || id == "" {
-		return fmt.Errorf("--account and --id are required")
+		return nil, fmt.Errorf("--account and --id are required")
 	}
 
 	token, err := auth.GetAccessToken(cfg, account)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	client := graph.NewClient(token)
 	msg, err := client.GetMessage(id)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
+	result := messageInfoFromGraph(account, *msg, true)
+	return &result, nil
+}
+
+// ListAttachments lists attachment metadata for one message.
+func ListAttachments(cfg *config.Config, account, id string) ([]AttachmentInfo, error) {
+	if account == "" || id == "" {
+		return nil, fmt.Errorf("--account and --id are required")
+	}
+
+	token, err := auth.GetAccessToken(cfg, account)
+	if err != nil {
+		return nil, err
+	}
+
+	client := graph.NewClient(token)
+	attachments, err := client.ListAttachments(id)
+	if err != nil {
+		return nil, err
+	}
+
+	results := make([]AttachmentInfo, 0, len(attachments))
+	for _, attachment := range attachments {
+		results = append(results, AttachmentInfo{
+			ID:          attachment.ID,
+			Account:     account,
+			MessageID:   id,
+			Name:        attachment.Name,
+			ContentType: attachment.ContentType,
+			Size:        attachment.Size,
+			IsInline:    attachment.IsInline,
+		})
+	}
+	return results, nil
+}
+
+func messageInfoFromGraph(account string, msg graph.Message, includeBody bool) MessageInfo {
 	from := ""
 	if msg.From != nil {
 		from = msg.From.EmailAddress.Format()
 	}
 
-	fmt.Println("---")
-	fmt.Printf("id: %s\n", msg.ID)
-	fmt.Printf("account: %s\n", account)
-	fmt.Printf("subject: %s\n", msg.Subject)
-	fmt.Printf("from: %s\n", from)
-	if to := formatRecipients(msg.ToRecipients); to != "" {
-		fmt.Printf("to: %s\n", to)
-	}
-	if cc := formatRecipients(msg.CcRecipients); cc != "" {
-		fmt.Printf("cc: %s\n", cc)
-	}
-	if msg.ReceivedDateTime != "" {
-		fmt.Printf("received: %s\n", msg.ReceivedDateTime)
-	}
-	fmt.Printf("is_read: %v\n", msg.IsRead)
-	fmt.Printf("has_attachments: %v\n", msg.HasAttachments)
-	if msg.ConversationID != "" {
-		fmt.Printf("conversation_id: %s\n", msg.ConversationID)
-	}
-	if msg.WebLink != "" {
-		fmt.Printf("web_link: %s\n", msg.WebLink)
-	}
-	fmt.Println("---")
-	fmt.Println()
-	if msg.Subject != "" {
-		fmt.Printf("# %s\n\n", msg.Subject)
-	}
-
+	body := ""
 	if msg.Body != nil && strings.TrimSpace(msg.Body.Content) != "" {
-		body := msg.Body.Content
+		body = msg.Body.Content
 		if strings.EqualFold(msg.Body.ContentType, "html") {
 			body = graph.HTMLToMarkdown(body)
 		}
-		fmt.Println(strings.TrimSpace(body))
 	}
 
-	return nil
+	info := MessageInfo{
+		ID:               msg.ID,
+		Account:          account,
+		Subject:          msg.Subject,
+		From:             from,
+		To:               recipientStrings(msg.ToRecipients),
+		CC:               recipientStrings(msg.CcRecipients),
+		ReceivedDateTime: msg.ReceivedDateTime,
+		SentDateTime:     msg.SentDateTime,
+		IsRead:           msg.IsRead,
+		HasAttachments:   msg.HasAttachments,
+		BodyPreview:      msg.BodyPreview,
+		ConversationID:   msg.ConversationID,
+		WebLink:          msg.WebLink,
+	}
+	if includeBody {
+		info.BodyMarkdown = strings.TrimSpace(body)
+	}
+	return info
 }
 
 // Send sends an email
@@ -172,7 +198,6 @@ func Send(cfg *config.Config, account, to, subject, body string, force bool) err
 		return err
 	}
 
-	fmt.Printf("Email sent to %s\n", to)
 	return nil
 }
 
@@ -207,14 +232,14 @@ func formatReceived(value string, loc *time.Location) string {
 	return t.In(loc).Format("2006-01-02 15:04")
 }
 
-func formatRecipients(recipients []graph.Recipient) string {
+func recipientStrings(recipients []graph.Recipient) []string {
 	parts := make([]string, 0, len(recipients))
 	for _, r := range recipients {
 		if s := r.EmailAddress.Format(); s != "" {
 			parts = append(parts, s)
 		}
 	}
-	return strings.Join(parts, ", ")
+	return parts
 }
 
 func pad(s string, n int) string {

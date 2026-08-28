@@ -19,6 +19,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/lcorneliussen/md365/internal/apierr"
 	"github.com/lcorneliussen/md365/internal/config"
 	"github.com/zalando/go-keyring"
 )
@@ -59,11 +60,20 @@ type TokenResponse struct {
 	ErrorDesc    string `json:"error_description,omitempty"`
 }
 
+type AccountStatus struct {
+	Account        string   `json:"account"`
+	AuthFlow       string   `json:"auth_flow"`
+	Authenticated  bool     `json:"authenticated"`
+	Expired        bool     `json:"expired,omitempty"`
+	ExpiresInHours int      `json:"expires_in_hours,omitempty"`
+	Scopes         []string `json:"scopes,omitempty"`
+}
+
 // GetAccessToken returns a valid access token for the account, refreshing if needed
 func GetAccessToken(cfg *config.Config, account string) (string, error) {
 	token, err := loadToken(account)
 	if err != nil {
-		return "", fmt.Errorf("no token found for account '%s'. Run: md365 auth login --account %s", account, account)
+		return "", apierr.Auth(account)
 	}
 
 	// Check if token needs refresh
@@ -509,35 +519,36 @@ func LoginAuthCode(cfg *config.Config, account string, scope string) error {
 	return nil
 }
 
-// Status shows authentication status for all accounts
-func Status(cfg *config.Config) {
-	fmt.Println("Account authentication status:")
-	fmt.Println()
-
+// Status returns authentication status for all accounts.
+func Status(cfg *config.Config) []AccountStatus {
+	statuses := []AccountStatus{}
 	for _, account := range cfg.ListAccounts() {
 		authFlow := cfg.GetAuthFlow(account)
 		token, err := loadToken(account)
 		if err != nil {
-			fmt.Printf("  %s: NOT AUTHENTICATED [%s]\n", account, authFlow)
+			statuses = append(statuses, AccountStatus{
+				Account:       account,
+				AuthFlow:      authFlow,
+				Authenticated: false,
+			})
 			continue
 		}
 
+		status := AccountStatus{
+			Account:       account,
+			AuthFlow:      authFlow,
+			Authenticated: true,
+			Scopes:        parseScopes(token.Scope),
+		}
 		if token.ExpiresOn > time.Now().Unix() {
 			remaining := time.Duration(token.ExpiresOn-time.Now().Unix()) * time.Second
-			hours := int(remaining.Hours())
-			fmt.Printf("  %s: Valid (expires in %dh) [%s]\n", account, hours, authFlow)
-			// Show scopes
-			if token.Scope != "" {
-				fmt.Printf("    Scopes: %s\n", token.Scope)
-			}
+			status.ExpiresInHours = int(remaining.Hours())
 		} else {
-			fmt.Printf("  %s: EXPIRED [%s]\n", account, authFlow)
-			// Show scopes even if expired
-			if token.Scope != "" {
-				fmt.Printf("    Scopes: %s\n", token.Scope)
-			}
+			status.Expired = true
 		}
+		statuses = append(statuses, status)
 	}
+	return statuses
 }
 
 // tokenFilePath returns the file path for file-based token storage
@@ -706,16 +717,23 @@ func mergeScopes(scopeLists ...[]string) string {
 	return strings.Join(result, " ")
 }
 
+// Scopes returns the scopes stored for an account.
+func Scopes(account string) ([]string, error) {
+	token, err := loadToken(account)
+	if err != nil {
+		return nil, err
+	}
+	return parseScopes(token.Scope), nil
+}
+
 // ShowScopes displays the scopes for an account
 func ShowScopes(account string) error {
-	token, err := loadToken(account)
+	scopes, err := Scopes(account)
 	if err != nil {
 		fmt.Printf("No token found for account '%s'\n", account)
 		fmt.Printf("Run: md365 auth login --account %s\n", account)
 		return nil
 	}
-
-	scopes := parseScopes(token.Scope)
 	if len(scopes) == 0 {
 		fmt.Printf("No scopes stored for account '%s'\n", account)
 		return nil

@@ -1,6 +1,6 @@
 # md365
 
-AI-native CLI for Microsoft 365. Syncs calendars and contacts as local Markdown files.
+AI- and human-friendly CLI for Microsoft 365. Syncs calendars and contacts as local Markdown files.
 
 ## The Problem
 
@@ -87,6 +87,10 @@ job_title: Engineer
 ## Usage
 
 ```bash
+md365 about                             # Explain the read model, cache, and account conventions
+md365 commands --json                   # Inspect command/flag surface
+md365 skill install                     # Install the md365 agent skill
+
 md365 sync                              # Sync all accounts
 md365 sync --account work               # Sync one account
 
@@ -107,6 +111,7 @@ md365 mail list --account work           # Recent mailbox messages
 md365 mail list --account work --search bauer
 md365 mail list --account work --from-addr colleague@company.com --since 2026-05-01
 md365 mail get --account work --id <message-id>
+md365 mail attachments --account work --id <message-id>
 
 md365 mail send --account work \         # Send mail via API
   --to "colleague@company.com" \
@@ -115,6 +120,20 @@ md365 mail send --account work \         # Send mail via API
 md365 auth login --account work          # Device code OAuth login
 md365 auth status                        # Token status
 ```
+
+### Agent-Friendly Output
+
+Most commands support structured output:
+
+```bash
+md365 cal list --account work --json
+md365 contacts search doe --ids-only
+md365 mail list --account work --count
+```
+
+JSON success responses use a stable envelope with `ok`, `data`, optional
+`summary`, `meta`, and `breadcrumbs`. Errors use `ok: false`, `error`, `code`,
+and optional `hint`.
 
 ## Cross-Tenant Guard
 

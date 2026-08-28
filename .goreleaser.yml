@@ -35,7 +35,7 @@ brews:
       owner: lcorneliussen
       name: homebrew-md365
     homepage: https://github.com/lcorneliussen/md365
-    description: "AI-native CLI for Microsoft 365 - calendars, contacts, and mail as Markdown"
+    description: "AI- and human-friendly CLI for Microsoft 365 - calendars, contacts, and mail as Markdown"
     license: MIT
     install: |
       bin.install "md365"

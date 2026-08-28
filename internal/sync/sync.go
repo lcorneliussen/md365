@@ -20,6 +20,19 @@ type SyncState struct {
 	ContactsDeltaLink string `json:"contacts_delta_link,omitempty"`
 }
 
+type CalendarSyncResult struct {
+	Account string `json:"account"`
+	Events  int    `json:"events"`
+	Deleted int    `json:"deleted"`
+}
+
+type ContactsSyncResult struct {
+	Account   string `json:"account"`
+	Updated   int    `json:"updated"`
+	Deleted   int    `json:"deleted"`
+	DeltaLink bool   `json:"delta_link"`
+}
+
 // WriteEventFile writes a calendar event to a markdown file
 func WriteEventFile(cfg *config.Config, account string, event *graph.Event, timezone string) (string, error) {
 	calDir := filepath.Join(cfg.DataDir, account, "calendar")
@@ -68,15 +81,15 @@ func WriteEventFile(cfg *config.Config, account string, event *graph.Event, time
 
 	// Build frontmatter
 	fm := map[string]interface{}{
-		"id":            event.ID,
-		"account":       account,
-		"subject":       event.Subject,
-		"start":         startRFC3339,
-		"end":           endRFC3339,
-		"all_day":       event.IsAllDay,
+		"id":             event.ID,
+		"account":        account,
+		"subject":        event.Subject,
+		"start":          startRFC3339,
+		"end":            endRFC3339,
+		"all_day":        event.IsAllDay,
 		"online_meeting": event.IsOnlineMeeting,
-		"sensitivity":   event.Sensitivity,
-		"last_modified": event.LastModifiedDateTime,
+		"sensitivity":    event.Sensitivity,
+		"last_modified":  event.LastModifiedDateTime,
 	}
 
 	if event.ResponseStatus != nil {
@@ -245,11 +258,9 @@ func WriteContactFile(cfg *config.Config, account string, contact *graph.Contact
 }
 
 // SyncCalendar syncs calendar events for an account
-func SyncCalendar(cfg *config.Config, account string, token string) error {
+func SyncCalendar(cfg *config.Config, account string, token string) (CalendarSyncResult, error) {
 	client := graph.NewClient(token)
 	calDir := filepath.Join(cfg.DataDir, account, "calendar")
-
-	fmt.Printf("Syncing calendar for account '%s'...\n", account)
 
 	// Calculate date range: -30 days to +90 days
 	startDate := time.Now().AddDate(0, 0, -30)
@@ -257,7 +268,7 @@ func SyncCalendar(cfg *config.Config, account string, token string) error {
 
 	events, err := client.GetCalendarView(startDate, endDate)
 	if err != nil {
-		return fmt.Errorf("failed to get calendar view: %w", err)
+		return CalendarSyncResult{Account: account}, fmt.Errorf("failed to get calendar view: %w", err)
 	}
 
 	// Track which file path was written for each event ID
@@ -297,7 +308,7 @@ func SyncCalendar(cfg *config.Config, account string, token string) error {
 
 		return nil
 	}); err != nil {
-		return fmt.Errorf("failed to walk calendar directory: %w", err)
+		return CalendarSyncResult{Account: account}, fmt.Errorf("failed to walk calendar directory: %w", err)
 	}
 
 	// Update sync state
@@ -305,16 +316,13 @@ func SyncCalendar(cfg *config.Config, account string, token string) error {
 		fmt.Fprintf(os.Stderr, "Warning: failed to update sync state: %v\n", err)
 	}
 
-	fmt.Printf("Synced %d events for '%s' (deleted %d)\n", len(events), account, deleted)
-	return nil
+	return CalendarSyncResult{Account: account, Events: len(events), Deleted: deleted}, nil
 }
 
 // SyncContacts syncs contacts for an account
-func SyncContacts(cfg *config.Config, account string, token string) error {
+func SyncContacts(cfg *config.Config, account string, token string) (ContactsSyncResult, error) {
 	client := graph.NewClient(token)
 	contactDir := filepath.Join(cfg.DataDir, account, "contacts")
-
-	fmt.Printf("Syncing contacts for account '%s'...\n", account)
 
 	// Load sync state
 	state, err := loadSyncState(cfg.DataDir, account)
@@ -325,7 +333,7 @@ func SyncContacts(cfg *config.Config, account string, token string) error {
 	// Get contacts using delta query
 	contacts, newDeltaLink, err := client.GetContactsDelta(state.ContactsDeltaLink)
 	if err != nil {
-		return fmt.Errorf("failed to get contacts: %w", err)
+		return ContactsSyncResult{Account: account}, fmt.Errorf("failed to get contacts: %w", err)
 	}
 
 	newCount := 0
@@ -355,8 +363,7 @@ func SyncContacts(cfg *config.Config, account string, token string) error {
 		fmt.Fprintf(os.Stderr, "Warning: failed to update sync state: %v\n", err)
 	}
 
-	fmt.Printf("Synced contacts for '%s' (new/updated: %d, deleted: %d)\n", account, newCount, deletedCount)
-	return nil
+	return ContactsSyncResult{Account: account, Updated: newCount, Deleted: deletedCount, DeltaLink: newDeltaLink != ""}, nil
 }
 
 // findFileByID finds an existing markdown file with the given ID in its frontmatter

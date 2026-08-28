@@ -2,13 +2,13 @@ package cmd
 
 import (
 	"fmt"
-	"os"
 	"regexp"
 	"strings"
 
 	"github.com/charmbracelet/huh"
 	"github.com/lcorneliussen/md365/internal/auth"
 	"github.com/lcorneliussen/md365/internal/config"
+	"github.com/lcorneliussen/md365/internal/output"
 	"github.com/spf13/cobra"
 )
 
@@ -23,7 +23,7 @@ var (
 	authAddFlow    string
 	authAddScopes  string
 	authAddDomains string
-	authAddLogin bool
+	authAddLogin   bool
 )
 
 // authCmd represents the auth command
@@ -38,16 +38,18 @@ var authLoginCmd = &cobra.Command{
 	Use:   "login",
 	Short: "Login to account",
 	Long:  `Authenticate an account using the configured auth flow (devicecode or authcode).`,
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		if authAccount == "" {
-			cmd.Help()
-			os.Exit(1)
-			return
+			return usageError("--account is required")
+		}
+		if !writer.IsHuman() {
+			return usageError("auth login is interactive; run without machine-readable output flags")
 		}
 
 		if err := auth.DispatchLogin(cfg, authAccount, authScope, authAddScope); err != nil {
-			fatal(err)
+			return err
 		}
+		return nil
 	},
 }
 
@@ -56,8 +58,28 @@ var authStatusCmd = &cobra.Command{
 	Use:   "status",
 	Short: "Show authentication status",
 	Long:  `Show authentication status for all accounts.`,
-	Run: func(cmd *cobra.Command, args []string) {
-		auth.Status(cfg)
+	RunE: func(cmd *cobra.Command, args []string) error {
+		statuses := auth.Status(cfg)
+		if writer.IsHuman() {
+			fmt.Fprintln(cmd.OutOrStdout(), "Account authentication status:")
+			fmt.Fprintln(cmd.OutOrStdout())
+			for _, status := range statuses {
+				if !status.Authenticated {
+					fmt.Fprintf(cmd.OutOrStdout(), "  %s: NOT AUTHENTICATED [%s]\n", status.Account, status.AuthFlow)
+					continue
+				}
+				if status.Expired {
+					fmt.Fprintf(cmd.OutOrStdout(), "  %s: EXPIRED [%s]\n", status.Account, status.AuthFlow)
+				} else {
+					fmt.Fprintf(cmd.OutOrStdout(), "  %s: Valid (expires in %dh) [%s]\n", status.Account, status.ExpiresInHours, status.AuthFlow)
+				}
+				if len(status.Scopes) > 0 {
+					fmt.Fprintf(cmd.OutOrStdout(), "    Scopes: %s\n", strings.Join(status.Scopes, " "))
+				}
+			}
+			return nil
+		}
+		return writeOK(statuses, output.WithSummary(fmt.Sprintf("%d accounts", len(statuses))))
 	},
 }
 
@@ -66,16 +88,15 @@ var authRefreshCmd = &cobra.Command{
 	Use:   "refresh",
 	Short: "Refresh token",
 	Long:  `Force refresh the access token for an account.`,
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		if authAccount == "" {
-			cmd.Help()
-			os.Exit(1)
-			return
+			return usageError("--account is required")
 		}
 
 		if err := auth.RefreshToken(cfg, authAccount); err != nil {
-			fatal(err)
+			return err
 		}
+		return writeOK(map[string]string{"account": authAccount}, output.WithSummary("Token refreshed successfully"))
 	},
 }
 
@@ -84,16 +105,27 @@ var authScopesCmd = &cobra.Command{
 	Use:   "scopes",
 	Short: "Show token scopes",
 	Long:  `Display the scopes stored in the current token for an account.`,
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		if authAccount == "" {
-			cmd.Help()
-			os.Exit(1)
-			return
+			return usageError("--account is required")
 		}
 
-		if err := auth.ShowScopes(authAccount); err != nil {
-			fatal(err)
+		scopes, err := auth.Scopes(authAccount)
+		if err != nil {
+			return err
 		}
+		if writer.IsHuman() {
+			if len(scopes) == 0 {
+				fmt.Fprintf(cmd.OutOrStdout(), "No scopes stored for account '%s'\n", authAccount)
+				return nil
+			}
+			fmt.Fprintf(cmd.OutOrStdout(), "Scopes for account '%s':\n", authAccount)
+			for _, scope := range scopes {
+				fmt.Fprintf(cmd.OutOrStdout(), "  - %s\n", scope)
+			}
+			return nil
+		}
+		return writeOK(scopes, output.WithSummary(fmt.Sprintf("%d scopes", len(scopes))))
 	},
 }
 

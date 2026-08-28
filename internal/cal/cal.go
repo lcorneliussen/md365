@@ -17,22 +17,27 @@ import (
 
 // EventInfo represents parsed event information for listing
 type EventInfo struct {
-	Start    time.Time
-	End      time.Time
-	Subject  string
-	Location string
-	Account  string
-	FilePath string
+	ID       string    `json:"id,omitempty"`
+	Start    time.Time `json:"start"`
+	End      time.Time `json:"end"`
+	Subject  string    `json:"subject"`
+	Location string    `json:"location,omitempty"`
+	Account  string    `json:"account"`
+	FilePath string    `json:"file_path,omitempty"`
 }
 
 // List lists calendar events
-func List(cfg *config.Config, fromDate, toDate time.Time, search, account string) error {
+func List(cfg *config.Config, fromDate, toDate time.Time, search, account string, noCache bool) ([]EventInfo, error) {
 	// Determine which accounts to search
 	var accounts []string
 	if account != "" {
 		accounts = []string{account}
 	} else {
 		accounts = cfg.ListAccounts()
+	}
+
+	if noCache {
+		return listLive(cfg, fromDate, toDate, search, accounts)
 	}
 
 	// Collect events
@@ -93,8 +98,10 @@ func List(cfg *config.Config, fromDate, toDate time.Time, search, account string
 
 			subject, _ := fm["subject"].(string)
 			location, _ := fm["location"].(string)
+			id, _ := fm["id"].(string)
 
 			events = append(events, EventInfo{
+				ID:       id,
 				Start:    start,
 				End:      end,
 				Subject:  subject,
@@ -107,32 +114,115 @@ func List(cfg *config.Config, fromDate, toDate time.Time, search, account string
 		})
 
 		if err != nil {
-			return fmt.Errorf("failed to walk calendar directory: %w", err)
+			return nil, fmt.Errorf("failed to walk calendar directory: %w", err)
 		}
 	}
 
-	// Sort by start time
+	sortEvents(events)
+	return events, nil
+}
+
+func listLive(cfg *config.Config, fromDate, toDate time.Time, search string, accounts []string) ([]EventInfo, error) {
+	var events []EventInfo
+
+	for _, acc := range accounts {
+		token, err := auth.GetAccessToken(cfg, acc)
+		if err != nil {
+			return nil, err
+		}
+
+		client := graph.NewClient(token)
+		graphEvents, err := client.GetCalendarView(fromDate, toDate)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get calendar view for '%s': %w", acc, err)
+		}
+
+		for _, event := range graphEvents {
+			if search != "" && !strings.Contains(strings.ToLower(eventSearchText(event)), strings.ToLower(search)) {
+				continue
+			}
+
+			info, err := eventInfoFromGraph(acc, event)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Warning: skipped event %s: %v\n", event.ID, err)
+				continue
+			}
+			events = append(events, info)
+		}
+	}
+
+	sortEvents(events)
+	return events, nil
+}
+
+func eventInfoFromGraph(account string, event graph.Event) (EventInfo, error) {
+	start, err := parseGraphDateTime(event.Start)
+	if err != nil {
+		return EventInfo{}, err
+	}
+
+	end, err := parseGraphDateTime(event.End)
+	if err != nil {
+		return EventInfo{}, err
+	}
+
+	location := ""
+	if event.Location != nil {
+		location = event.Location.DisplayName
+	}
+
+	return EventInfo{
+		ID:       event.ID,
+		Start:    start,
+		End:      end,
+		Subject:  event.Subject,
+		Location: location,
+		Account:  account,
+	}, nil
+}
+
+func parseGraphDateTime(value graph.DateTime) (time.Time, error) {
+	loc := time.UTC
+	if value.TimeZone != "" {
+		loaded, err := time.LoadLocation(value.TimeZone)
+		if err == nil {
+			loc = loaded
+		}
+	}
+
+	for _, layout := range []string{"2006-01-02T15:04:05.0000000", "2006-01-02T15:04:05", time.RFC3339} {
+		if t, err := time.ParseInLocation(layout, value.DateTime, loc); err == nil {
+			return t, nil
+		}
+	}
+
+	return time.Time{}, fmt.Errorf("failed to parse datetime %s", value.DateTime)
+}
+
+func eventSearchText(event graph.Event) string {
+	var parts []string
+	parts = append(parts, event.Subject)
+
+	if event.Location != nil {
+		parts = append(parts, event.Location.DisplayName)
+	}
+	if event.Organizer != nil {
+		parts = append(parts, event.Organizer.EmailAddress.Format())
+	}
+	for _, attendee := range event.Attendees {
+		parts = append(parts, attendee.EmailAddress.Format())
+	}
+	if event.Body != nil {
+		parts = append(parts, event.Body.Content)
+	}
+
+	return strings.Join(parts, "\n")
+}
+
+func sortEvents(events []EventInfo) {
 	sort.Slice(events, func(i, j int) bool {
 		return events[i].Start.Before(events[j].Start)
 	})
-
-	// Display events
-	for _, event := range events {
-		startDate := event.Start.Format("2006-01-02 Mon")
-		startTime := event.Start.Format("15:04")
-		endTime := event.End.Format("15:04")
-
-		line := fmt.Sprintf("%s %s-%s %-30s [%s]",
-			startDate, startTime, endTime, truncate(event.Subject, 30), event.Account)
-
-		if event.Location != "" {
-			line += fmt.Sprintf(" 📍 %s", event.Location)
-		}
-
-		fmt.Println(line)
-	}
-
-	return nil
 }
 
 // parseFlexibleDateTime parses various datetime formats and converts to the configured timezone
@@ -144,9 +234,9 @@ func parseFlexibleDateTime(input, timezoneName string) (string, error) {
 
 	// Try parsing various formats
 	formats := []string{
-		time.RFC3339,                // "2026-03-04T10:00:00+01:00"
-		"2006-01-02T15:04:05",       // "2026-03-04T10:00:00"
-		"2006-01-02 15:04",          // "2026-03-04 10:00"
+		time.RFC3339,          // "2026-03-04T10:00:00+01:00"
+		"2006-01-02T15:04:05", // "2026-03-04T10:00:00"
+		"2006-01-02 15:04",    // "2026-03-04 10:00"
 	}
 
 	var parsed time.Time
@@ -170,29 +260,29 @@ func parseFlexibleDateTime(input, timezoneName string) (string, error) {
 }
 
 // Create creates a new calendar event
-func Create(cfg *config.Config, account, subject, start, end, location, body string, attendees []string, force bool) error {
+func Create(cfg *config.Config, account, subject, start, end, location, body string, attendees []string, force bool) (string, error) {
 	// Check cross-tenant unless force is enabled
 	if !force && len(attendees) > 0 {
 		if err := cfg.CheckCrossTenant(account, attendees); err != nil {
-			return err
+			return "", err
 		}
 	}
 
 	// Get access token
 	token, err := auth.GetAccessToken(cfg, account)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	// Parse and convert datetimes to configured timezone
 	startDateTime, err := parseFlexibleDateTime(start, cfg.Timezone)
 	if err != nil {
-		return fmt.Errorf("invalid start datetime: %w", err)
+		return "", fmt.Errorf("invalid start datetime: %w", err)
 	}
 
 	endDateTime, err := parseFlexibleDateTime(end, cfg.Timezone)
 	if err != nil {
-		return fmt.Errorf("invalid end datetime: %w", err)
+		return "", fmt.Errorf("invalid end datetime: %w", err)
 	}
 
 	// Create event
@@ -235,65 +325,64 @@ func Create(cfg *config.Config, account, subject, start, end, location, body str
 
 	created, err := client.CreateEvent(event)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	// Write to local file
 	filePath, err := sync.WriteEventFile(cfg, account, created, cfg.Timezone)
 	if err != nil {
-		return fmt.Errorf("event created but failed to write local file: %w", err)
+		return "", fmt.Errorf("event created but failed to write local file: %w", err)
 	}
 
-	fmt.Printf("Event created: %s\n", filePath)
-	return nil
+	return filePath, nil
 }
 
 // Delete deletes a calendar event
-func Delete(cfg *config.Config, account, id, filePath string) error {
+func Delete(cfg *config.Config, account, id, filePath string) (string, error) {
 	// If file provided, extract account and ID
 	if filePath != "" {
 		data, err := os.ReadFile(filePath)
 		if err != nil {
-			return fmt.Errorf("failed to read file: %w", err)
+			return "", fmt.Errorf("failed to read file: %w", err)
 		}
 
 		content := string(data)
 		parts := strings.SplitN(content, "---", 3)
 		if len(parts) < 3 {
-			return fmt.Errorf("invalid frontmatter in file")
+			return "", fmt.Errorf("invalid frontmatter in file")
 		}
 
 		var fm map[string]interface{}
 		if err := yaml.Unmarshal([]byte(parts[1]), &fm); err != nil {
-			return fmt.Errorf("failed to parse frontmatter: %w", err)
+			return "", fmt.Errorf("failed to parse frontmatter: %w", err)
 		}
 
 		var ok bool
 		account, ok = fm["account"].(string)
 		if !ok {
-			return fmt.Errorf("account not found in frontmatter")
+			return "", fmt.Errorf("account not found in frontmatter")
 		}
 
 		id, ok = fm["id"].(string)
 		if !ok {
-			return fmt.Errorf("id not found in frontmatter")
+			return "", fmt.Errorf("id not found in frontmatter")
 		}
 	}
 
 	if account == "" || id == "" {
-		return fmt.Errorf("account and id are required")
+		return "", fmt.Errorf("account and id are required")
 	}
 
 	// Get access token
 	token, err := auth.GetAccessToken(cfg, account)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	// Delete via API
 	client := graph.NewClient(token)
 	if err := client.DeleteEvent(id); err != nil {
-		return err
+		return "", err
 	}
 
 	// Delete local file
@@ -301,11 +390,10 @@ func Delete(cfg *config.Config, account, id, filePath string) error {
 		if err := os.Remove(filePath); err != nil {
 			fmt.Fprintf(os.Stderr, "Warning: failed to delete local file: %v\n", err)
 		}
-		fmt.Printf("Event deleted: %s\n", filePath)
+		return filePath, nil
 	} else {
 		// Find and delete file by ID
 		calDir := filepath.Join(cfg.DataDir, account, "calendar")
-		deleted := false
 
 		filepath.Walk(calDir, func(path string, info os.FileInfo, err error) error {
 			if err != nil || info.IsDir() || !strings.HasSuffix(path, ".md") {
@@ -331,26 +419,13 @@ func Delete(cfg *config.Config, account, id, filePath string) error {
 			fileID, ok := fm["id"].(string)
 			if ok && fileID == id {
 				if err := os.Remove(path); err == nil {
-					fmt.Printf("Event deleted: %s\n", path)
-					deleted = true
+					filePath = path
 				}
 			}
 
 			return nil
 		})
 
-		if !deleted {
-			fmt.Println("Event deleted (local file not found)")
-		}
+		return filePath, nil
 	}
-
-	return nil
-}
-
-// truncate truncates a string to a maximum length
-func truncate(s string, maxLen int) string {
-	if len(s) <= maxLen {
-		return s
-	}
-	return s[:maxLen]
 }

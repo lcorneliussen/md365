@@ -11,6 +11,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/lcorneliussen/md365/internal/apierr"
 )
 
 const (
@@ -119,6 +121,15 @@ type Message struct {
 	Body             *Body       `json:"body,omitempty"`
 }
 
+// Attachment represents message attachment metadata.
+type Attachment struct {
+	ID          string `json:"id,omitempty"`
+	Name        string `json:"name"`
+	ContentType string `json:"contentType,omitempty"`
+	Size        int    `json:"size,omitempty"`
+	IsInline    bool   `json:"isInline,omitempty"`
+}
+
 // ListMessagesOptions controls a mailbox query
 type ListMessagesOptions struct {
 	Search   string
@@ -154,9 +165,9 @@ type RemovedMarker struct {
 
 // ODataResponse represents a paged OData response
 type ODataResponse struct {
-	Value    json.RawMessage `json:"value"`
-	NextLink string          `json:"@odata.nextLink"`
-	DeltaLink string         `json:"@odata.deltaLink"`
+	Value     json.RawMessage `json:"value"`
+	NextLink  string          `json:"@odata.nextLink"`
+	DeltaLink string          `json:"@odata.deltaLink"`
 }
 
 // ErrorResponse represents an error from the Graph API
@@ -282,9 +293,9 @@ func (c *Client) DeleteEvent(eventID string) error {
 		body, _ := io.ReadAll(resp.Body)
 		var errResp ErrorResponse
 		if json.Unmarshal(body, &errResp) == nil && errResp.Error.Message != "" {
-			return fmt.Errorf("failed to delete event (HTTP %d): %s", resp.StatusCode, errResp.Error.Message)
+			return apierr.Graph(resp.StatusCode, fmt.Sprintf("failed to delete event: %s", errResp.Error.Message))
 		}
-		return fmt.Errorf("failed to delete event (HTTP %d)", resp.StatusCode)
+		return apierr.Graph(resp.StatusCode, "failed to delete event")
 	}
 
 	return nil
@@ -322,6 +333,7 @@ func (c *Client) SendMail(to, subject, body string) error {
 
 const messageListSelect = "id,subject,from,toRecipients,receivedDateTime,isRead,hasAttachments,bodyPreview"
 const messageGetSelect = "id,subject,from,toRecipients,ccRecipients,receivedDateTime,sentDateTime,isRead,hasAttachments,conversationId,webLink,body"
+const attachmentListSelect = "id,name,contentType,size,isInline"
 
 // ListMessages retrieves mailbox messages matching the given options
 func (c *Client) ListMessages(opts ListMessagesOptions) ([]Message, error) {
@@ -390,6 +402,34 @@ func (c *Client) GetMessage(id string) (*Message, error) {
 		return nil, fmt.Errorf("failed to parse message: %w", err)
 	}
 	return &msg, nil
+}
+
+// ListAttachments retrieves metadata for one message's attachments.
+func (c *Client) ListAttachments(messageID string) ([]Attachment, error) {
+	reqURL := fmt.Sprintf("%s/me/messages/%s/attachments?$select=%s", baseURL, url.PathEscape(messageID), attachmentListSelect)
+	var all []Attachment
+
+	for reqURL != "" {
+		resp, err := c.doRequestHeaders("GET", reqURL, nil, nil)
+		if err != nil {
+			return nil, err
+		}
+
+		var odataResp ODataResponse
+		if err := json.Unmarshal(resp, &odataResp); err != nil {
+			return nil, fmt.Errorf("failed to parse response: %w", err)
+		}
+
+		var attachments []Attachment
+		if err := json.Unmarshal(odataResp.Value, &attachments); err != nil {
+			return nil, fmt.Errorf("failed to parse attachments: %w", err)
+		}
+
+		all = append(all, attachments...)
+		reqURL = odataResp.NextLink
+	}
+
+	return all, nil
 }
 
 func messagesEndpoint(folder string) string {
@@ -478,9 +518,9 @@ func (c *Client) doRequestHeaders(method, reqURL string, body []byte, headers ma
 	if resp.StatusCode >= 400 {
 		var errResp ErrorResponse
 		if json.Unmarshal(respBody, &errResp) == nil && errResp.Error.Message != "" {
-			return nil, fmt.Errorf("API error (HTTP %d): %s", resp.StatusCode, errResp.Error.Message)
+			return nil, apierr.Graph(resp.StatusCode, errResp.Error.Message)
 		}
-		return nil, fmt.Errorf("API error (HTTP %d)", resp.StatusCode)
+		return nil, apierr.Graph(resp.StatusCode, fmt.Sprintf("Microsoft Graph error (HTTP %d)", resp.StatusCode))
 	}
 
 	// For methods that return no content

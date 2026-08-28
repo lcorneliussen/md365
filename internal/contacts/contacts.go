@@ -6,12 +6,25 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/lcorneliussen/md365/internal/auth"
 	"github.com/lcorneliussen/md365/internal/config"
+	"github.com/lcorneliussen/md365/internal/graph"
 	"gopkg.in/yaml.v3"
 )
 
+type ContactInfo struct {
+	ID          string   `json:"id,omitempty"`
+	Account     string   `json:"account"`
+	DisplayName string   `json:"display_name"`
+	Emails      []string `json:"emails,omitempty"`
+	Phones      []string `json:"phones,omitempty"`
+	Company     string   `json:"company,omitempty"`
+	JobTitle    string   `json:"job_title,omitempty"`
+	FilePath    string   `json:"file_path,omitempty"`
+}
+
 // Search searches for contacts matching a query
-func Search(cfg *config.Config, query, account string) error {
+func Search(cfg *config.Config, query, account string, noCache bool) ([]ContactInfo, error) {
 	// Determine which accounts to search
 	var accounts []string
 	if account != "" {
@@ -20,7 +33,12 @@ func Search(cfg *config.Config, query, account string) error {
 		accounts = cfg.ListAccounts()
 	}
 
+	if noCache {
+		return searchLive(cfg, query, accounts)
+	}
+
 	queryLower := strings.ToLower(query)
+	results := []ContactInfo{}
 
 	for _, acc := range accounts {
 		contactDir := filepath.Join(cfg.DataDir, acc, "contacts")
@@ -58,30 +76,112 @@ func Search(cfg *config.Config, query, account string) error {
 
 			// Extract fields
 			displayName, _ := fm["display_name"].(string)
+			id, _ := fm["id"].(string)
+			company, _ := fm["company"].(string)
+			jobTitle, _ := fm["job_title"].(string)
 
-			// Get first email if available
-			email := ""
-			if emails, ok := fm["emails"].([]interface{}); ok && len(emails) > 0 {
-				if e, ok := emails[0].(string); ok {
-					email = e
-				}
-			}
-
-			// Display contact
-			line := fmt.Sprintf("[%s] %s", acc, displayName)
-			if email != "" {
-				line += fmt.Sprintf(" <%s>", email)
-			}
-
-			fmt.Println(line)
+			results = append(results, ContactInfo{
+				ID:          id,
+				Account:     acc,
+				DisplayName: displayName,
+				Emails:      stringSliceFromFrontmatter(fm["emails"]),
+				Phones:      stringSliceFromFrontmatter(fm["phones"]),
+				Company:     company,
+				JobTitle:    jobTitle,
+				FilePath:    path,
+			})
 
 			return nil
 		})
 
 		if err != nil {
-			return fmt.Errorf("failed to walk contacts directory: %w", err)
+			return nil, fmt.Errorf("failed to walk contacts directory: %w", err)
 		}
 	}
 
-	return nil
+	return results, nil
+}
+
+func searchLive(cfg *config.Config, query string, accounts []string) ([]ContactInfo, error) {
+	queryLower := strings.ToLower(query)
+	results := []ContactInfo{}
+
+	for _, acc := range accounts {
+		token, err := auth.GetAccessToken(cfg, acc)
+		if err != nil {
+			return nil, err
+		}
+
+		client := graph.NewClient(token)
+		contacts, _, err := client.GetContactsDelta("")
+		if err != nil {
+			return nil, fmt.Errorf("failed to get contacts for '%s': %w", acc, err)
+		}
+
+		for _, contact := range contacts {
+			if contact.Removed != nil {
+				continue
+			}
+			if !strings.Contains(strings.ToLower(contactSearchText(contact)), queryLower) {
+				continue
+			}
+
+			results = append(results, contactInfoFromGraph(acc, contact))
+		}
+	}
+
+	return results, nil
+}
+
+func contactInfoFromGraph(account string, contact graph.Contact) ContactInfo {
+	emails := make([]string, 0, len(contact.EmailAddresses))
+	for _, email := range contact.EmailAddresses {
+		emails = append(emails, email.Address)
+	}
+	phones := append([]string{}, contact.BusinessPhones...)
+	phones = append(phones, contact.HomePhones...)
+	if contact.MobilePhone != "" {
+		phones = append(phones, contact.MobilePhone)
+	}
+	return ContactInfo{
+		ID:          contact.ID,
+		Account:     account,
+		DisplayName: contact.DisplayName,
+		Emails:      emails,
+		Phones:      phones,
+		Company:     contact.CompanyName,
+		JobTitle:    contact.JobTitle,
+	}
+}
+
+func contactSearchText(contact graph.Contact) string {
+	parts := []string{
+		contact.DisplayName,
+		contact.GivenName,
+		contact.Surname,
+		contact.CompanyName,
+		contact.JobTitle,
+		contact.Birthday,
+		contact.MobilePhone,
+	}
+	for _, email := range contact.EmailAddresses {
+		parts = append(parts, email.Name, email.Address)
+	}
+	parts = append(parts, contact.BusinessPhones...)
+	parts = append(parts, contact.HomePhones...)
+	return strings.Join(parts, "\n")
+}
+
+func stringSliceFromFrontmatter(value any) []string {
+	raw, ok := value.([]interface{})
+	if !ok {
+		return nil
+	}
+	result := make([]string, 0, len(raw))
+	for _, item := range raw {
+		if s, ok := item.(string); ok {
+			result = append(result, s)
+		}
+	}
+	return result
 }

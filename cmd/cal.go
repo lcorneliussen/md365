@@ -1,10 +1,13 @@
 package cmd
 
 import (
+	"fmt"
+	"os"
+	"strings"
 	"time"
 
 	"github.com/lcorneliussen/md365/internal/cal"
-	"os"
+	"github.com/lcorneliussen/md365/internal/output"
 	"github.com/spf13/cobra"
 )
 
@@ -22,6 +25,7 @@ var (
 	calFile      string
 	calAttendees []string
 	calForce     bool
+	calNoCache   bool
 )
 
 // calCmd represents the cal command
@@ -36,7 +40,7 @@ var calListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List calendar events",
 	Long:  `List calendar events from local Markdown files.`,
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		// Parse dates
 		var fromDate, toDate time.Time
 		var err error
@@ -44,7 +48,7 @@ var calListCmd = &cobra.Command{
 		if calFrom != "" {
 			fromDate, err = time.Parse("2006-01-02", calFrom)
 			if err != nil {
-				fatal(err)
+				return usageError(err.Error())
 			}
 		} else {
 			fromDate = time.Now()
@@ -53,7 +57,7 @@ var calListCmd = &cobra.Command{
 		if calTo != "" {
 			toDate, err = time.Parse("2006-01-02", calTo)
 			if err != nil {
-				fatal(err)
+				return usageError(err.Error())
 			}
 			// Set to end of day
 			toDate = toDate.Add(23*time.Hour + 59*time.Minute + 59*time.Second)
@@ -61,9 +65,19 @@ var calListCmd = &cobra.Command{
 			toDate = time.Now().AddDate(0, 0, 14).Add(23*time.Hour + 59*time.Minute + 59*time.Second)
 		}
 
-		if err := cal.List(cfg, fromDate, toDate, calSearch, calAccount); err != nil {
-			fatal(err)
+		events, err := cal.List(cfg, fromDate, toDate, calSearch, calAccount, calNoCache)
+		if err != nil {
+			return err
 		}
+
+		if writer.IsHuman() {
+			printCalendarEvents(cmd, events)
+			return nil
+		}
+		return writeOK(events,
+			output.WithSummary(fmt.Sprintf("%d calendar events", len(events))),
+			output.WithMeta("source", sourceName(calNoCache)),
+		)
 	},
 }
 
@@ -79,9 +93,18 @@ var calCreateCmd = &cobra.Command{
 			return
 		}
 
-		if err := cal.Create(cfg, calAccount, calSubject, calStart, calEnd, calLocation, calBody, calAttendees, calForce); err != nil {
+		filePath, err := cal.Create(cfg, calAccount, calSubject, calStart, calEnd, calLocation, calBody, calAttendees, calForce)
+		if err != nil {
 			fatal(err)
 		}
+		if writer.IsHuman() {
+			fmt.Fprintf(cmd.OutOrStdout(), "Event created: %s\n", filePath)
+			return
+		}
+		_ = writeOK(map[string]string{
+			"account":   calAccount,
+			"file_path": filePath,
+		}, output.WithSummary("Event created"))
 	},
 }
 
@@ -96,9 +119,23 @@ var calDeleteCmd = &cobra.Command{
 			calFile = args[0]
 		}
 
-		if err := cal.Delete(cfg, calAccount, calID, calFile); err != nil {
+		filePath, err := cal.Delete(cfg, calAccount, calID, calFile)
+		if err != nil {
 			fatal(err)
 		}
+		if writer.IsHuman() {
+			if filePath != "" {
+				fmt.Fprintf(cmd.OutOrStdout(), "Event deleted: %s\n", filePath)
+			} else {
+				fmt.Fprintln(cmd.OutOrStdout(), "Event deleted (local file not found)")
+			}
+			return
+		}
+		_ = writeOK(map[string]string{
+			"account":   calAccount,
+			"id":        calID,
+			"file_path": filePath,
+		}, output.WithSummary("Event deleted"))
 	},
 }
 
@@ -108,6 +145,7 @@ func init() {
 	calListCmd.Flags().StringVar(&calTo, "to", "", "End date (YYYY-MM-DD)")
 	calListCmd.Flags().StringVar(&calSearch, "search", "", "Search query")
 	calListCmd.Flags().StringVar(&calAccount, "account", "", "Filter by account")
+	calListCmd.Flags().BoolVar(&calNoCache, "no-cache", false, "Read directly from Microsoft Graph instead of local Markdown")
 
 	// cal create
 	calCreateCmd.Flags().StringVar(&calAccount, "account", "", "Account (required)")
@@ -126,4 +164,35 @@ func init() {
 	calCmd.AddCommand(calListCmd)
 	calCmd.AddCommand(calCreateCmd)
 	calCmd.AddCommand(calDeleteCmd)
+}
+
+func printCalendarEvents(cmd *cobra.Command, events []cal.EventInfo) {
+	for _, event := range events {
+		startDate := event.Start.Format("2006-01-02 Mon")
+		startTime := event.Start.Format("15:04")
+		endTime := event.End.Format("15:04")
+
+		line := fmt.Sprintf("%s %s-%s %-30s [%s]",
+			startDate, startTime, endTime, truncateHuman(event.Subject, 30), event.Account)
+
+		if event.Location != "" {
+			line += fmt.Sprintf(" 📍 %s", event.Location)
+		}
+
+		fmt.Fprintln(cmd.OutOrStdout(), line)
+	}
+}
+
+func sourceName(noCache bool) string {
+	if noCache {
+		return "graph"
+	}
+	return "cache"
+}
+
+func truncateHuman(s string, maxLen int) string {
+	if len(s) <= maxLen {
+		return s
+	}
+	return strings.TrimSpace(s[:maxLen])
 }

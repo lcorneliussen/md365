@@ -1,7 +1,7 @@
 # AGENTS.md — md365
 
 ## Project
-- **What:** AI-native CLI for Microsoft 365 — calendars, contacts, and mail as Markdown
+- **What:** AI- and human-friendly CLI for Microsoft 365 — calendars, contacts, and mail as Markdown
 - **Language:** Go
 - **Repo:** github.com/lcorneliussen/md365
 - **Binary:** `md365`
@@ -69,3 +69,5 @@ internal/
 - **Timezone:** Uses `cfg.Timezone` (from config.yaml, e.g. "Europe/Berlin") everywhere. Never hardcode UTC.
 - **Graph API Event struct:** Optional fields use pointer types + `omitempty` to avoid sending empty structs (causes HTTP 400).
 - **Frontmatter dates:** RFC3339 with local timezone offset (e.g. `+01:00` CET, `+02:00` CEST).
+- **Read source model:** Calendar and contacts default to the local Markdown cache for fast search/filter. `--no-cache` means bypass local files and read directly from Microsoft Graph without updating the cache.
+- **Structured responses:** JSON output uses a stable envelope with `ok`, `data`, optional `summary`, `meta`, and `breadcrumbs`. Breadcrumbs should point agents to natural next commands such as listing attachments after reading an email.
