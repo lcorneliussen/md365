@@ -29,11 +29,13 @@ changelog:
 
 release:
   header: "{{ .TagBody }}"
+  replace_existing_artifacts: true
 
 brews:
   - repository:
       owner: lcorneliussen
       name: homebrew-md365
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
     homepage: https://github.com/lcorneliussen/md365
     description: "AI- and human-friendly CLI for Microsoft 365 - calendars, contacts, and mail as Markdown"
     license: MIT
