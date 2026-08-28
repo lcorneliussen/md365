@@ -203,6 +203,7 @@ func runAuthAdd() error {
 					Options(
 						huh.NewOption("Calendar (read/write)", "Calendars.ReadWrite"),
 						huh.NewOption("Contacts (read/write)", "Contacts.ReadWrite"),
+						huh.NewOption("Mail (read)", "Mail.Read"),
 						huh.NewOption("Mail (send)", "Mail.Send"),
 						huh.NewOption("User profile (read)", "User.Read"),
 					).

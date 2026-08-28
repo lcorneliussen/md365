@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -93,6 +95,39 @@ type OnlineMeeting struct {
 type Body struct {
 	ContentType string `json:"contentType"`
 	Content     string `json:"content"`
+}
+
+// Recipient represents a mail recipient
+type Recipient struct {
+	EmailAddress EmailAddress `json:"emailAddress"`
+}
+
+// Message represents a mail message
+type Message struct {
+	ID               string      `json:"id,omitempty"`
+	Subject          string      `json:"subject"`
+	From             *Recipient  `json:"from,omitempty"`
+	ToRecipients     []Recipient `json:"toRecipients,omitempty"`
+	CcRecipients     []Recipient `json:"ccRecipients,omitempty"`
+	ReceivedDateTime string      `json:"receivedDateTime,omitempty"`
+	SentDateTime     string      `json:"sentDateTime,omitempty"`
+	IsRead           bool        `json:"isRead"`
+	HasAttachments   bool        `json:"hasAttachments,omitempty"`
+	BodyPreview      string      `json:"bodyPreview,omitempty"`
+	ConversationID   string      `json:"conversationId,omitempty"`
+	WebLink          string      `json:"webLink,omitempty"`
+	Body             *Body       `json:"body,omitempty"`
+}
+
+// ListMessagesOptions controls a mailbox query
+type ListMessagesOptions struct {
+	Search   string
+	FromAddr string
+	Since    time.Time
+	Until    time.Time
+	Unread   bool
+	Folder   string
+	Limit    int
 }
 
 // Contact represents a contact
@@ -285,14 +320,136 @@ func (c *Client) SendMail(to, subject, body string) error {
 	return err
 }
 
+const messageListSelect = "id,subject,from,toRecipients,receivedDateTime,isRead,hasAttachments,bodyPreview"
+const messageGetSelect = "id,subject,from,toRecipients,ccRecipients,receivedDateTime,sentDateTime,isRead,hasAttachments,conversationId,webLink,body"
+
+// ListMessages retrieves mailbox messages matching the given options
+func (c *Client) ListMessages(opts ListMessagesOptions) ([]Message, error) {
+	limit := opts.Limit
+	if limit <= 0 {
+		limit = 25
+	}
+
+	endpoint := messagesEndpoint(opts.Folder)
+	query := url.Values{}
+	query.Set("$select", messageListSelect)
+	query.Set("$top", strconv.Itoa(min(limit, 50)))
+
+	headers := map[string]string{}
+	if search := buildMailSearch(opts); search != "" {
+		query.Set("$search", `"`+search+`"`)
+		headers["ConsistencyLevel"] = "eventual"
+	} else {
+		query.Set("$orderby", "receivedDateTime desc")
+		if filter := buildMailFilter(opts); filter != "" {
+			query.Set("$filter", filter)
+		}
+	}
+
+	reqURL := endpoint + "?" + query.Encode()
+	var all []Message
+
+	for reqURL != "" && len(all) < limit {
+		resp, err := c.doRequestHeaders("GET", reqURL, nil, headers)
+		if err != nil {
+			return nil, err
+		}
+
+		var odataResp ODataResponse
+		if err := json.Unmarshal(resp, &odataResp); err != nil {
+			return nil, fmt.Errorf("failed to parse response: %w", err)
+		}
+
+		var messages []Message
+		if err := json.Unmarshal(odataResp.Value, &messages); err != nil {
+			return nil, fmt.Errorf("failed to parse messages: %w", err)
+		}
+
+		all = append(all, messages...)
+		reqURL = odataResp.NextLink
+	}
+
+	if len(all) > limit {
+		all = all[:limit]
+	}
+	return all, nil
+}
+
+// GetMessage retrieves a single message including body
+func (c *Client) GetMessage(id string) (*Message, error) {
+	reqURL := fmt.Sprintf("%s/me/messages/%s?$select=%s", baseURL, url.PathEscape(id), messageGetSelect)
+	resp, err := c.doRequestHeaders("GET", reqURL, nil, map[string]string{
+		"Prefer": `outlook.body-content-type="text"`,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	var msg Message
+	if err := json.Unmarshal(resp, &msg); err != nil {
+		return nil, fmt.Errorf("failed to parse message: %w", err)
+	}
+	return &msg, nil
+}
+
+func messagesEndpoint(folder string) string {
+	if folder == "" {
+		return baseURL + "/me/messages"
+	}
+	return baseURL + "/me/mailFolders/" + url.PathEscape(folder) + "/messages"
+}
+
+func buildMailSearch(opts ListMessagesOptions) string {
+	if opts.Search == "" && opts.FromAddr == "" {
+		return ""
+	}
+
+	var parts []string
+	if opts.Search != "" {
+		parts = append(parts, "("+opts.Search+")")
+	}
+	if opts.FromAddr != "" {
+		parts = append(parts, "from:"+opts.FromAddr)
+	}
+	if !opts.Since.IsZero() {
+		parts = append(parts, "received>="+opts.Since.Format("2006-01-02"))
+	}
+	if !opts.Until.IsZero() {
+		parts = append(parts, "received<="+opts.Until.Format("2006-01-02"))
+	}
+	if opts.Unread {
+		parts = append(parts, "isread:false")
+	}
+	return strings.Join(parts, " AND ")
+}
+
+func buildMailFilter(opts ListMessagesOptions) string {
+	var parts []string
+	if !opts.Since.IsZero() {
+		parts = append(parts, "receivedDateTime ge "+opts.Since.UTC().Format("2006-01-02T15:04:05Z"))
+	}
+	if !opts.Until.IsZero() {
+		parts = append(parts, "receivedDateTime le "+opts.Until.UTC().Format("2006-01-02T15:04:05Z"))
+	}
+	if opts.Unread {
+		parts = append(parts, "isRead eq false")
+	}
+	return strings.Join(parts, " and ")
+}
+
 // doRequest performs an HTTP request
 func (c *Client) doRequest(method, url string, body []byte) ([]byte, error) {
+	return c.doRequestHeaders(method, url, body, nil)
+}
+
+// doRequestHeaders performs an HTTP request with extra headers
+func (c *Client) doRequestHeaders(method, reqURL string, body []byte, headers map[string]string) ([]byte, error) {
 	var reqBody io.Reader
 	if body != nil {
 		reqBody = bytes.NewReader(body)
 	}
 
-	req, err := http.NewRequest(method, url, reqBody)
+	req, err := http.NewRequest(method, reqURL, reqBody)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
@@ -300,6 +457,9 @@ func (c *Client) doRequest(method, url string, body []byte) ([]byte, error) {
 	req.Header.Set("Authorization", "Bearer "+c.Token)
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
+	}
+	for k, v := range headers {
+		req.Header.Set(k, v)
 	}
 
 	client := &http.Client{Timeout: 30 * time.Second}

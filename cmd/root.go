@@ -20,7 +20,7 @@ var rootCmd = &cobra.Command{
 	Long: `md365 - Markdown client for Microsoft 365
 
 Syncs calendars and contacts as plain Markdown files with YAML frontmatter.
-Write operations go through Microsoft Graph API.`,
+Mail list/get and write operations go through Microsoft Graph API.`,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 		// Skip config loading for commands that don't need it
 		if cmd.Name() == "help" || cmd.Name() == "md365" || cmd.Name() == "add" {

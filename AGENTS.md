@@ -17,6 +17,7 @@ No test suite yet — test manually:
 md365 auth refresh --account private
 md365 sync --account private
 md365 cal list --account private --from 2026-01-01 --to 2026-12-31
+md365 mail list --account talendos --search bauer
 ```
 
 ## Config
@@ -60,7 +61,7 @@ internal/
   config/      # Config loading, cross-tenant checks
   contacts/    # Contact sync
   graph/       # Microsoft Graph API client, types
-  mail/        # Mail send
+  mail/        # Mail list, get, send
   sync/        # Sync engine, markdown file writer
 ```
 

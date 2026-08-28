@@ -10,7 +10,7 @@ accounts:
   work:
     client_id: "YOUR_AZURE_APP_CLIENT_ID"
     hint: "you@company.com"
-    scope: "Calendars.ReadWrite Contacts.ReadWrite User.Read Mail.Send"
+    scope: "Calendars.ReadWrite Contacts.ReadWrite User.Read Mail.Read Mail.Send"
     domains:
       - company.com
   personal:

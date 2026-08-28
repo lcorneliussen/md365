@@ -79,7 +79,7 @@ func Load() (*Config, error) {
 				"accounts:\n"+
 				"  myaccount:\n"+
 				"    hint: user@example.com\n"+
-				"    scope: Calendars.ReadWrite Contacts.ReadWrite User.Read Mail.Send",
+				"    scope: Calendars.ReadWrite Contacts.ReadWrite User.Read Mail.Read Mail.Send",
 				configFile, configFile)
 		}
 		return nil, fmt.Errorf("failed to read config file: %w", err)

@@ -14,6 +14,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 	"time"
@@ -264,6 +265,19 @@ func generateCodeChallenge(verifier string) string {
 	return base64.RawURLEncoding.EncodeToString(h.Sum(nil))
 }
 
+func openBrowser(rawURL string) {
+	var cmd *exec.Cmd
+	switch runtime.GOOS {
+	case "darwin":
+		cmd = exec.Command("open", rawURL)
+	case "windows":
+		cmd = exec.Command("rundll32", "url.dll,FileProtocolHandler", rawURL)
+	default:
+		cmd = exec.Command("xdg-open", rawURL)
+	}
+	_ = cmd.Start()
+}
+
 // getFreePort finds a free port on localhost
 func getFreePort() (int, error) {
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
@@ -429,8 +443,7 @@ func LoginAuthCode(cfg *config.Config, account string, scope string) error {
 	fmt.Println()
 	fmt.Println("Waiting for authentication...")
 
-	// Try to open browser (Linux only, ignore errors)
-	exec.Command("xdg-open", authURL.String()).Start()
+	openBrowser(authURL.String())
 
 	// Wait for callback with timeout (~900s to match device code flow)
 	timeout := time.After(900 * time.Second)

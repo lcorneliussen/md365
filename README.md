@@ -103,6 +103,11 @@ md365 cal delete --account work --id <event-id>
 
 md365 contacts search doe               # Search local contacts
 
+md365 mail list --account work           # Recent mailbox messages
+md365 mail list --account work --search bauer
+md365 mail list --account work --from-addr colleague@company.com --since 2026-05-01
+md365 mail get --account work --id <message-id>
+
 md365 mail send --account work \         # Send mail via API
   --to "colleague@company.com" \
   --subject "Hello" --body "Text"
@@ -139,7 +144,7 @@ md365 auth add -i
 Or non-interactive (AI-friendly):
 ```bash
 md365 auth add --name work --hint you@company.com \
-  --scopes "Calendars.ReadWrite,Contacts.ReadWrite,User.Read,Mail.Send" \
+  --scopes "Calendars.ReadWrite,Contacts.ReadWrite,User.Read,Mail.Read,Mail.Send" \
   --domains "company.com" --login
 ```
 
@@ -172,7 +177,7 @@ Config lives at `~/.config/md365/config.yaml`:
 accounts:
   work:
     hint: "you@company.com"
-    scope: "offline_access Calendars.ReadWrite Contacts.ReadWrite User.Read Mail.Send"
+    scope: "offline_access Calendars.ReadWrite Contacts.ReadWrite User.Read Mail.Read Mail.Send"
     domains:
       - company.com
   personal:
