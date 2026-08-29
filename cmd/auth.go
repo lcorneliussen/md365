@@ -7,6 +7,7 @@ import (
 
 	"github.com/charmbracelet/huh"
 	"github.com/lcorneliussen/md365/internal/auth"
+	"github.com/lcorneliussen/md365/internal/capability"
 	"github.com/lcorneliussen/md365/internal/config"
 	"github.com/lcorneliussen/md365/internal/output"
 	"github.com/spf13/cobra"
@@ -16,14 +17,18 @@ var (
 	authAccount  string
 	authScope    string
 	authAddScope []string
+	authCommands []string
+	authFeatures []string
 
 	// flags for auth add
-	authAddName    string
-	authAddHint    string
-	authAddFlow    string
-	authAddScopes  string
-	authAddDomains string
-	authAddLogin   bool
+	authAddName     string
+	authAddHint     string
+	authAddFlow     string
+	authAddScopes   string
+	authAddCommands []string
+	authAddFeatures []string
+	authAddDomains  string
+	authAddLogin    bool
 )
 
 // authCmd represents the auth command
@@ -45,11 +50,89 @@ var authLoginCmd = &cobra.Command{
 		if !writer.IsHuman() {
 			return usageError("auth login is interactive; run without machine-readable output flags")
 		}
+		if authScope != "" && (len(authCommands) > 0 || len(authFeatures) > 0) {
+			return usageError("--scope cannot be combined with --command or --feature")
+		}
+		if len(authCommands) > 0 || len(authFeatures) > 0 {
+			plan, err := capability.Resolve(authCommands, authFeatures)
+			if err != nil {
+				return usageError(err.Error())
+			}
+			authAddScope = append(authAddScope, plan.Scopes...)
+		}
 
 		if err := auth.DispatchLogin(cfg, authAccount, authScope, authAddScope); err != nil {
 			return err
 		}
 		return nil
+	},
+}
+
+var authPlanCmd = &cobra.Command{
+	Use:   "plan",
+	Short: "Plan least-privilege permissions",
+	Long:  `Resolve command and feature selections to the minimal delegated Microsoft Graph scopes.`,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		plan, err := capability.Resolve(authCommands, authFeatures)
+		if err != nil {
+			return usageError(err.Error())
+		}
+		if writer.IsHuman() {
+			fmt.Fprintln(cmd.OutOrStdout(), "Commands:")
+			for _, command := range plan.Commands {
+				fmt.Fprintf(cmd.OutOrStdout(), "  - %s: %s\n", command.Name, strings.Join(command.Scopes, " "))
+			}
+			fmt.Fprintln(cmd.OutOrStdout(), "\nRequired scopes:")
+			for _, scope := range plan.Scopes {
+				fmt.Fprintf(cmd.OutOrStdout(), "  - %s\n", scope)
+			}
+			return nil
+		}
+		return writeOK(plan, output.WithSummary(fmt.Sprintf("%d commands require %d scopes", len(plan.Commands), len(plan.Scopes))))
+	},
+}
+
+type authExplainResult struct {
+	Account         string               `json:"account"`
+	GrantedScopes   []string             `json:"granted_scopes"`
+	AllowedCommands []capability.Command `json:"allowed_commands"`
+	BlockedCommands []capability.Command `json:"blocked_commands"`
+}
+
+var authExplainCmd = &cobra.Command{
+	Use:   "explain",
+	Short: "Explain what an account can do",
+	Long:  `Show which md365 commands are allowed or blocked by the account's current token scopes.`,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		if authAccount == "" {
+			return usageError("--account is required")
+		}
+		scopes, err := auth.Scopes(authAccount)
+		if err != nil {
+			return err
+		}
+		result := authExplainResult{Account: authAccount, GrantedScopes: scopes}
+		for _, command := range capability.Commands() {
+			if capability.Allowed(command, scopes) {
+				result.AllowedCommands = append(result.AllowedCommands, command)
+			} else {
+				result.BlockedCommands = append(result.BlockedCommands, command)
+			}
+		}
+		if writer.IsHuman() {
+			fmt.Fprintf(cmd.OutOrStdout(), "Account '%s'\n", authAccount)
+			fmt.Fprintf(cmd.OutOrStdout(), "Scopes: %s\n\n", strings.Join(scopes, " "))
+			fmt.Fprintln(cmd.OutOrStdout(), "Allowed commands:")
+			for _, command := range result.AllowedCommands {
+				fmt.Fprintf(cmd.OutOrStdout(), "  - %s\n", command.Name)
+			}
+			fmt.Fprintln(cmd.OutOrStdout(), "\nBlocked commands:")
+			for _, command := range result.BlockedCommands {
+				fmt.Fprintf(cmd.OutOrStdout(), "  - %s (requires %s)\n", command.Name, strings.Join(command.Scopes, " "))
+			}
+			return nil
+		}
+		return writeOK(result, output.WithSummary(fmt.Sprintf("%d allowed, %d blocked", len(result.AllowedCommands), len(result.BlockedCommands))))
 	},
 }
 
@@ -76,11 +159,28 @@ var authStatusCmd = &cobra.Command{
 				if len(status.Scopes) > 0 {
 					fmt.Fprintf(cmd.OutOrStdout(), "    Scopes: %s\n", strings.Join(status.Scopes, " "))
 				}
+				if len(status.AllowedCommands) > 0 {
+					fmt.Fprintf(cmd.OutOrStdout(), "    Available: %s\n", joinCommandNames(status.AllowedCommands))
+				}
+				if len(status.BlockedCommands) > 0 {
+					fmt.Fprintln(cmd.OutOrStdout(), "    Blocked:")
+					for _, command := range status.BlockedCommands {
+						fmt.Fprintf(cmd.OutOrStdout(), "      - %s (requires %s)\n", command.Name, strings.Join(command.Scopes, " "))
+					}
+				}
 			}
 			return nil
 		}
 		return writeOK(statuses, output.WithSummary(fmt.Sprintf("%d accounts", len(statuses))))
 	},
+}
+
+func joinCommandNames(commands []capability.Command) string {
+	names := make([]string, 0, len(commands))
+	for _, command := range commands {
+		names = append(names, command.Name)
+	}
+	return strings.Join(names, ", ")
 }
 
 // authRefreshCmd represents the auth refresh command
@@ -181,7 +281,11 @@ func runAuthAdd() error {
 			return fmt.Errorf("invalid --flow: must be 'devicecode' or 'authcode'")
 		}
 
-		// Parse scopes from flag (comma-separated)
+		if authAddScopes != "" && (len(authAddCommands) > 0 || len(authAddFeatures) > 0) {
+			return fmt.Errorf("--scopes cannot be combined with --command or --feature")
+		}
+
+		// Parse scopes from flags or resolve command/feature selections.
 		if authAddScopes != "" {
 			for _, s := range strings.Split(authAddScopes, ",") {
 				scope := strings.TrimSpace(s)
@@ -189,6 +293,12 @@ func runAuthAdd() error {
 					scopeChoices = append(scopeChoices, scope)
 				}
 			}
+		} else if len(authAddCommands) > 0 || len(authAddFeatures) > 0 {
+			plan, err := capability.Resolve(authAddCommands, authAddFeatures)
+			if err != nil {
+				return err
+			}
+			scopeChoices = plan.Scopes
 		} else {
 			// Default scopes if not specified
 			scopeChoices = []string{"Calendars.ReadWrite", "User.Read"}
@@ -271,6 +381,7 @@ func runAuthAdd() error {
 	scopes = append(scopes, scopeChoices...)
 	// Always add offline_access
 	scopes = append(scopes, "offline_access")
+	scopes = capability.MinimalScopes(scopes)
 	scopeStr := strings.Join(scopes, " ")
 
 	// Process domains
@@ -322,14 +433,21 @@ func init() {
 	authLoginCmd.Flags().StringVar(&authAccount, "account", "", "Account name (required)")
 	authLoginCmd.Flags().StringVar(&authScope, "scope", "", "Override config scope (full scope string)")
 	authLoginCmd.Flags().StringSliceVar(&authAddScope, "add-scope", []string{}, "Add scope(s) to existing token scopes")
+	authLoginCmd.Flags().StringSliceVar(&authCommands, "command", []string{}, "Add permissions required by command(s), e.g. 'mail archive'")
+	authLoginCmd.Flags().StringSliceVar(&authFeatures, "feature", []string{}, "Add permissions required by feature(s), e.g. mail-manage")
 	authRefreshCmd.Flags().StringVar(&authAccount, "account", "", "Account name (required)")
 	authScopesCmd.Flags().StringVar(&authAccount, "account", "", "Account name (required)")
+	authPlanCmd.Flags().StringSliceVar(&authCommands, "command", []string{}, "Command selector(s), e.g. 'mail archive' or 'mail *'")
+	authPlanCmd.Flags().StringSliceVar(&authFeatures, "feature", []string{}, "Feature bundle(s), e.g. mail-manage,calendar")
+	authExplainCmd.Flags().StringVar(&authAccount, "account", "", "Account name (required)")
 
 	// Flags for auth add (non-interactive mode)
 	authAddCmd.Flags().StringVar(&authAddName, "name", "", "Account name (required)")
 	authAddCmd.Flags().StringVar(&authAddHint, "hint", "", "Email hint (e.g., user@company.com)")
 	authAddCmd.Flags().StringVar(&authAddFlow, "flow", "devicecode", "Auth flow: devicecode or authcode")
 	authAddCmd.Flags().StringVar(&authAddScopes, "scopes", "", "Comma-separated scopes (e.g., Calendars.ReadWrite,User.Read)")
+	authAddCmd.Flags().StringSliceVar(&authAddCommands, "command", []string{}, "Commands whose permissions should be configured")
+	authAddCmd.Flags().StringSliceVar(&authAddFeatures, "feature", []string{}, "Feature bundles whose permissions should be configured")
 	authAddCmd.Flags().StringVar(&authAddDomains, "domains", "", "Comma-separated domains (e.g., company.com,subsidiary.com)")
 	authAddCmd.Flags().BoolVar(&authAddLogin, "login", false, "Auto-login after creating account")
 
@@ -338,4 +456,6 @@ func init() {
 	authCmd.AddCommand(authRefreshCmd)
 	authCmd.AddCommand(authScopesCmd)
 	authCmd.AddCommand(authAddCmd)
+	authCmd.AddCommand(authPlanCmd)
+	authCmd.AddCommand(authExplainCmd)
 }

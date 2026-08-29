@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/lcorneliussen/md365/internal/apierr"
+	"github.com/lcorneliussen/md365/internal/capability"
 	"github.com/lcorneliussen/md365/internal/config"
 	"github.com/zalando/go-keyring"
 )
@@ -61,12 +62,14 @@ type TokenResponse struct {
 }
 
 type AccountStatus struct {
-	Account        string   `json:"account"`
-	AuthFlow       string   `json:"auth_flow"`
-	Authenticated  bool     `json:"authenticated"`
-	Expired        bool     `json:"expired,omitempty"`
-	ExpiresInHours int      `json:"expires_in_hours,omitempty"`
-	Scopes         []string `json:"scopes,omitempty"`
+	Account         string               `json:"account"`
+	AuthFlow        string               `json:"auth_flow"`
+	Authenticated   bool                 `json:"authenticated"`
+	Expired         bool                 `json:"expired,omitempty"`
+	ExpiresInHours  int                  `json:"expires_in_hours,omitempty"`
+	Scopes          []string             `json:"scopes,omitempty"`
+	AllowedCommands []capability.Command `json:"allowed_commands,omitempty"`
+	BlockedCommands []capability.Command `json:"blocked_commands,omitempty"`
 }
 
 // GetAccessToken returns a valid access token for the account, refreshing if needed
@@ -542,6 +545,13 @@ func Status(cfg *config.Config) []AccountStatus {
 			AuthFlow:      authFlow,
 			Authenticated: true,
 			Scopes:        parseScopes(token.Scope),
+		}
+		for _, command := range capability.Commands() {
+			if capability.Allowed(command, status.Scopes) {
+				status.AllowedCommands = append(status.AllowedCommands, command)
+			} else {
+				status.BlockedCommands = append(status.BlockedCommands, command)
+			}
 		}
 		if token.ExpiresOn > time.Now().Unix() {
 			remaining := time.Duration(token.ExpiresOn-time.Now().Unix()) * time.Second

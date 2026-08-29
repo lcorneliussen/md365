@@ -167,6 +167,33 @@ md365 auth add --name work --hint you@company.com \
   --domains "company.com" --login
 ```
 
+Instead of assembling raw Microsoft Graph scopes, select the md365 commands or
+feature bundles you intend to use. md365 resolves them to the least-privilege
+scope set:
+
+```bash
+# Preview permissions without changing configuration or logging in
+md365 auth plan --feature mail-manage --command "cal *"
+
+# Configure a new account from feature bundles
+md365 auth add --name work --hint you@company.com \
+  --feature mail-manage,mail-send,calendar,sync \
+  --domains "company.com" --login
+
+# Incrementally request the permission needed by another command
+md365 auth login --account work --command "mail send"
+
+# Show token health and available/blocked commands for every account
+md365 auth status
+
+# Explain the same capability details for one account
+md365 auth explain --account work
+```
+
+Available feature bundles currently include `mail-read`, `mail-manage`,
+`mail-send`, `calendar-read`, `calendar`, and `sync`. Raw `--scope`/`--scopes`
+flags remain available as an expert escape hatch.
+
 md365 ships with a built-in app registration — no Azure setup needed. If your tenant requires a custom app, you can set `client_id` per account in the config.
 
 ### 2. Login and Sync
