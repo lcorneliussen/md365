@@ -2,6 +2,7 @@ package mail
 
 import (
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -199,6 +200,71 @@ func Send(cfg *config.Config, account, to, subject, body string, force bool) err
 	}
 
 	return nil
+}
+
+// MarkRead marks messages as read
+func MarkRead(cfg *config.Config, account string, ids []string) (int, int, error) {
+	token, err := auth.GetAccessToken(cfg, account)
+	if err != nil {
+		return 0, 0, err
+	}
+	client := graph.NewClient(token)
+	success := 0
+	failed := 0
+	for _, id := range ids {
+		if err := client.UpdateMessage(id, map[string]interface{}{"isRead": true}); err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to mark read: %v\n", err)
+			failed++
+			continue
+		}
+		success++
+	}
+	return success, failed, nil
+}
+
+// Archive marks messages as read and moves them to the archive folder
+func Archive(cfg *config.Config, account string, ids []string) (int, int, error) {
+	token, err := auth.GetAccessToken(cfg, account)
+	if err != nil {
+		return 0, 0, err
+	}
+	client := graph.NewClient(token)
+	success := 0
+	failed := 0
+	for _, id := range ids {
+		if err := client.UpdateMessage(id, map[string]interface{}{"isRead": true}); err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to mark read: %v\n", err)
+			failed++
+			continue
+		}
+		if err := client.MoveMessage(id, "archive"); err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to archive: %v\n", err)
+			failed++
+			continue
+		}
+		success++
+	}
+	return success, failed, nil
+}
+
+// Delete deletes messages (moves to Deleted Items)
+func Delete(cfg *config.Config, account string, ids []string) (int, int, error) {
+	token, err := auth.GetAccessToken(cfg, account)
+	if err != nil {
+		return 0, 0, err
+	}
+	client := graph.NewClient(token)
+	success := 0
+	failed := 0
+	for _, id := range ids {
+		if err := client.DeleteMessage(id); err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to delete: %v\n", err)
+			failed++
+			continue
+		}
+		success++
+	}
+	return success, failed, nil
 }
 
 func parseDay(value, timezone string, endOfDay bool) (time.Time, error) {

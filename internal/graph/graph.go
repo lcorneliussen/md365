@@ -432,6 +432,54 @@ func (c *Client) ListAttachments(messageID string) ([]Attachment, error) {
 	return all, nil
 }
 
+// UpdateMessage patches a message (e.g. mark as read)
+func (c *Client) UpdateMessage(id string, updates map[string]interface{}) error {
+	reqURL := fmt.Sprintf("%s/me/messages/%s", baseURL, url.PathEscape(id))
+	data, err := json.Marshal(updates)
+	if err != nil {
+		return fmt.Errorf("failed to marshal updates: %w", err)
+	}
+	_, err = c.doRequest("PATCH", reqURL, data)
+	return err
+}
+
+// MoveMessage moves a message to a well-known destination folder (e.g. "archive", "deleteditems")
+func (c *Client) MoveMessage(id string, destinationFolder string) error {
+	reqURL := fmt.Sprintf("%s/me/messages/%s/move", baseURL, url.PathEscape(id))
+	payload := map[string]string{"destinationId": destinationFolder}
+	data, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("failed to marshal payload: %w", err)
+	}
+	_, err = c.doRequest("POST", reqURL, data)
+	return err
+}
+
+// DeleteMessage deletes a message
+func (c *Client) DeleteMessage(id string) error {
+	reqURL := fmt.Sprintf("%s/me/messages/%s", baseURL, url.PathEscape(id))
+	req, err := http.NewRequest("DELETE", reqURL, nil)
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+c.Token)
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("request failed: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusNoContent {
+		body, _ := io.ReadAll(resp.Body)
+		var errResp ErrorResponse
+		if json.Unmarshal(body, &errResp) == nil && errResp.Error.Message != "" {
+			return apierr.Graph(resp.StatusCode, fmt.Sprintf("failed to delete message: %s", errResp.Error.Message))
+		}
+		return apierr.Graph(resp.StatusCode, "failed to delete message")
+	}
+	return nil
+}
+
 func messagesEndpoint(folder string) string {
 	if folder == "" {
 		return baseURL + "/me/messages"

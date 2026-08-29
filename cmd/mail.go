@@ -24,6 +24,7 @@ var (
 	mailLimit    int
 	mailUnread   bool
 	mailID       string
+	mailIDs      []string
 )
 
 // mailCmd represents the mail command
@@ -143,6 +144,110 @@ var mailSendCmd = &cobra.Command{
 	},
 }
 
+// mailMarkReadCmd marks messages as read
+var mailMarkReadCmd = &cobra.Command{
+	Use:   "mark-read",
+	Short: "Mark emails as read",
+	Long:  `Mark one or more emails as read. Pass IDs via --id flags or pipe from 'mail list --ids-only'.`,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		if mailAccount == "" {
+			return usageError("--account is required")
+		}
+		ids := collectIDs(mailIDs, args)
+		if len(ids) == 0 {
+			return usageError("no message IDs provided (use --id or pipe from 'mail list --ids-only')")
+		}
+		success, failed, err := mail.MarkRead(cfg, mailAccount, ids)
+		if err != nil {
+			return err
+		}
+		result := map[string]int{"marked_read": success, "failed": failed}
+		if writer.IsHuman() {
+			fmt.Fprintf(cmd.OutOrStdout(), "%d marked as read", success)
+			if failed > 0 {
+				fmt.Fprintf(cmd.OutOrStdout(), ", %d failed", failed)
+			}
+			fmt.Fprintln(cmd.OutOrStdout())
+			return nil
+		}
+		return writeOK(result, output.WithSummary(fmt.Sprintf("%d marked as read", success)))
+	},
+}
+
+// mailArchiveCmd archives messages (mark read + move to archive folder)
+var mailArchiveCmd = &cobra.Command{
+	Use:   "archive",
+	Short: "Archive emails",
+	Long:  `Archive emails: marks as read and moves to the Archive folder. Pass IDs via --id flags or pipe from 'mail list --ids-only'.`,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		if mailAccount == "" {
+			return usageError("--account is required")
+		}
+		ids := collectIDs(mailIDs, args)
+		if len(ids) == 0 {
+			return usageError("no message IDs provided (use --id or pipe from 'mail list --ids-only')")
+		}
+		success, failed, err := mail.Archive(cfg, mailAccount, ids)
+		if err != nil {
+			return err
+		}
+		result := map[string]int{"archived": success, "failed": failed}
+		if writer.IsHuman() {
+			fmt.Fprintf(cmd.OutOrStdout(), "%d archived", success)
+			if failed > 0 {
+				fmt.Fprintf(cmd.OutOrStdout(), ", %d failed", failed)
+			}
+			fmt.Fprintln(cmd.OutOrStdout())
+			return nil
+		}
+		return writeOK(result, output.WithSummary(fmt.Sprintf("%d archived", success)))
+	},
+}
+
+// mailDeleteCmd deletes messages
+var mailDeleteCmd = &cobra.Command{
+	Use:   "delete",
+	Short: "Delete emails",
+	Long:  `Delete emails (moves to Deleted Items). Pass IDs via --id flags or pipe from 'mail list --ids-only'.`,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		if mailAccount == "" {
+			return usageError("--account is required")
+		}
+		ids := collectIDs(mailIDs, args)
+		if len(ids) == 0 {
+			return usageError("no message IDs provided (use --id or pipe from 'mail list --ids-only')")
+		}
+		success, failed, err := mail.Delete(cfg, mailAccount, ids)
+		if err != nil {
+			return err
+		}
+		result := map[string]int{"deleted": success, "failed": failed}
+		if writer.IsHuman() {
+			fmt.Fprintf(cmd.OutOrStdout(), "%d deleted", success)
+			if failed > 0 {
+				fmt.Fprintf(cmd.OutOrStdout(), ", %d failed", failed)
+			}
+			fmt.Fprintln(cmd.OutOrStdout())
+			return nil
+		}
+		return writeOK(result, output.WithSummary(fmt.Sprintf("%d deleted", success)))
+	},
+}
+
+// collectIDs gathers message IDs from --id flags and positional args
+func collectIDs(flagIDs []string, args []string) []string {
+	seen := make(map[string]bool)
+	var ids []string
+	for _, id := range append(flagIDs, args...) {
+		id = strings.TrimSpace(id)
+		if id != "" && !seen[id] {
+			seen[id] = true
+			ids = append(ids, id)
+		}
+	}
+	return ids
+}
+
 func init() {
 	mailListCmd.Flags().StringVar(&mailAccount, "account", "", "Account (required)")
 	mailListCmd.Flags().StringVar(&mailSearch, "search", "", "KQL/text search (e.g. bauer or from:bauer)")
@@ -165,10 +270,22 @@ func init() {
 	mailSendCmd.Flags().StringVar(&mailBody, "body", "", "Email body")
 	mailSendCmd.Flags().BoolVar(&mailForce, "force", false, "Bypass cross-tenant checks")
 
+	mailMarkReadCmd.Flags().StringVar(&mailAccount, "account", "", "Account (required)")
+	mailMarkReadCmd.Flags().StringArrayVar(&mailIDs, "id", nil, "Message ID(s) to mark as read")
+
+	mailArchiveCmd.Flags().StringVar(&mailAccount, "account", "", "Account (required)")
+	mailArchiveCmd.Flags().StringArrayVar(&mailIDs, "id", nil, "Message ID(s) to archive")
+
+	mailDeleteCmd.Flags().StringVar(&mailAccount, "account", "", "Account (required)")
+	mailDeleteCmd.Flags().StringArrayVar(&mailIDs, "id", nil, "Message ID(s) to delete")
+
 	mailCmd.AddCommand(mailListCmd)
 	mailCmd.AddCommand(mailGetCmd)
 	mailCmd.AddCommand(mailAttachmentsCmd)
 	mailCmd.AddCommand(mailSendCmd)
+	mailCmd.AddCommand(mailMarkReadCmd)
+	mailCmd.AddCommand(mailArchiveCmd)
+	mailCmd.AddCommand(mailDeleteCmd)
 }
 
 func printMessages(cmd *cobra.Command, messages []mail.MessageInfo) {
