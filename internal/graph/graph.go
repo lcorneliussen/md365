@@ -331,6 +331,36 @@ func (c *Client) SendMail(to, subject, body string) error {
 	return err
 }
 
+// CreateDraft creates a mail draft without sending it.
+func (c *Client) CreateDraft(to, subject, body string) (*Message, error) {
+	payload := Message{
+		Subject: subject,
+		Body: &Body{
+			ContentType: "text",
+			Content:     body,
+		},
+		ToRecipients: []Recipient{{
+			EmailAddress: EmailAddress{Address: to},
+		}},
+	}
+
+	data, err := json.Marshal(payload)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal payload: %w", err)
+	}
+
+	resp, err := c.doRequest("POST", fmt.Sprintf("%s/me/messages", baseURL), data)
+	if err != nil {
+		return nil, err
+	}
+
+	var created Message
+	if err := json.Unmarshal(resp, &created); err != nil {
+		return nil, fmt.Errorf("failed to parse response: %w", err)
+	}
+	return &created, nil
+}
+
 const messageListSelect = "id,subject,from,toRecipients,receivedDateTime,isRead,hasAttachments,bodyPreview"
 const messageGetSelect = "id,subject,from,toRecipients,ccRecipients,receivedDateTime,sentDateTime,isRead,hasAttachments,conversationId,webLink,body"
 const attachmentListSelect = "id,name,contentType,size,isInline"

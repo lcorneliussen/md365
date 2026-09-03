@@ -144,6 +144,28 @@ var mailSendCmd = &cobra.Command{
 	},
 }
 
+// mailDraftCmd creates a draft without sending it.
+var mailDraftCmd = &cobra.Command{
+	Use:   "draft",
+	Short: "Create email draft",
+	Long:  `Create an email draft via Microsoft Graph API without sending it.`,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		if mailAccount == "" || mailTo == "" || mailSubject == "" {
+			return usageError("--account, --to, and --subject are required")
+		}
+
+		draft, err := mail.Draft(cfg, mailAccount, mailTo, mailSubject, mailBody, mailForce)
+		if err != nil {
+			return err
+		}
+		return writeOK(draft,
+			output.WithSummary(fmt.Sprintf("Draft created for %s", mailTo)),
+			output.WithMeta("source", "graph"),
+			output.WithBreadcrumbs(mailBreadcrumbs(*draft)...),
+		)
+	},
+}
+
 // mailMarkReadCmd marks messages as read
 var mailMarkReadCmd = &cobra.Command{
 	Use:   "mark-read",
@@ -270,6 +292,12 @@ func init() {
 	mailSendCmd.Flags().StringVar(&mailBody, "body", "", "Email body")
 	mailSendCmd.Flags().BoolVar(&mailForce, "force", false, "Bypass cross-tenant checks")
 
+	mailDraftCmd.Flags().StringVar(&mailAccount, "account", "", "Account (required)")
+	mailDraftCmd.Flags().StringVar(&mailTo, "to", "", "Recipient email (required)")
+	mailDraftCmd.Flags().StringVar(&mailSubject, "subject", "", "Email subject (required)")
+	mailDraftCmd.Flags().StringVar(&mailBody, "body", "", "Email body")
+	mailDraftCmd.Flags().BoolVar(&mailForce, "force", false, "Bypass cross-tenant checks")
+
 	mailMarkReadCmd.Flags().StringVar(&mailAccount, "account", "", "Account (required)")
 	mailMarkReadCmd.Flags().StringArrayVar(&mailIDs, "id", nil, "Message ID(s) to mark as read")
 
@@ -283,6 +311,7 @@ func init() {
 	mailCmd.AddCommand(mailGetCmd)
 	mailCmd.AddCommand(mailAttachmentsCmd)
 	mailCmd.AddCommand(mailSendCmd)
+	mailCmd.AddCommand(mailDraftCmd)
 	mailCmd.AddCommand(mailMarkReadCmd)
 	mailCmd.AddCommand(mailArchiveCmd)
 	mailCmd.AddCommand(mailDeleteCmd)

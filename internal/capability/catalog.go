@@ -34,6 +34,7 @@ var commands = []Command{
 	{Name: "mail mark-read", Description: "Mark messages as read", Scopes: []string{"Mail.ReadWrite"}},
 	{Name: "mail archive", Description: "Archive messages", Scopes: []string{"Mail.ReadWrite"}},
 	{Name: "mail delete", Description: "Move messages to Deleted Items", Scopes: []string{"Mail.ReadWrite"}},
+	{Name: "mail draft", Description: "Create message drafts", Scopes: []string{"Mail.ReadWrite"}},
 	{Name: "mail send", Description: "Send messages", Scopes: []string{"Mail.Send"}},
 	{Name: "cal list", Description: "List calendar events", Scopes: []string{"Calendars.Read"}},
 	{Name: "cal create", Description: "Create calendar events", Scopes: []string{"Calendars.ReadWrite"}},
@@ -43,7 +44,7 @@ var commands = []Command{
 
 var features = []Feature{
 	{Name: "mail-read", Description: "Read mail and attachments", Commands: []string{"mail list", "mail get", "mail attachments"}},
-	{Name: "mail-manage", Description: "Read, mark, archive, and delete mail", Commands: []string{"mail list", "mail get", "mail attachments", "mail mark-read", "mail archive", "mail delete"}},
+	{Name: "mail-manage", Description: "Read, draft, mark, archive, and delete mail", Commands: []string{"mail list", "mail get", "mail attachments", "mail draft", "mail mark-read", "mail archive", "mail delete"}},
 	{Name: "mail-send", Description: "Send mail", Commands: []string{"mail send"}},
 	{Name: "calendar-read", Description: "Read calendar events", Commands: []string{"cal list"}},
 	{Name: "calendar", Description: "Read and manage calendar events", Commands: []string{"cal list", "cal create", "cal delete"}},

@@ -117,6 +117,10 @@ md365 mail send --account work \         # Send mail via API
   --to "colleague@company.com" \
   --subject "Hello" --body "Text"
 
+md365 mail draft --account work \        # Create draft without sending
+  --to "colleague@company.com" \
+  --subject "Draft" --body "Text"
+
 md365 auth login --account work          # Device code OAuth login
 md365 auth status                        # Token status
 ```

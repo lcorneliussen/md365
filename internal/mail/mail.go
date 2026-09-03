@@ -202,6 +202,27 @@ func Send(cfg *config.Config, account, to, subject, body string, force bool) err
 	return nil
 }
 
+// Draft creates an email draft without sending it.
+func Draft(cfg *config.Config, account, to, subject, body string, force bool) (*MessageInfo, error) {
+	if !force {
+		if err := cfg.CheckCrossTenant(account, []string{to}); err != nil {
+			return nil, err
+		}
+	}
+
+	token, err := auth.GetAccessToken(cfg, account)
+	if err != nil {
+		return nil, err
+	}
+
+	created, err := graph.NewClient(token).CreateDraft(to, subject, body)
+	if err != nil {
+		return nil, err
+	}
+	result := messageInfoFromGraph(account, *created, true)
+	return &result, nil
+}
+
 // MarkRead marks messages as read
 func MarkRead(cfg *config.Config, account string, ids []string) (int, int, error) {
 	token, err := auth.GetAccessToken(cfg, account)
