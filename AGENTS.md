@@ -51,6 +51,10 @@ GoReleaser handles everything. **Do NOT use `gh release create`.**
    - Creates GitHub Release using the tag annotation as notes
    - Updates Homebrew tap (lcorneliussen/homebrew-md365)
 
+The default `GITHUB_TOKEN` cannot write to the tap repo. Releases push the formula over SSH using a write deploy key on `lcorneliussen/homebrew-md365`. Store the private key as the Actions secret `HOMEBREW_TAP_SSH_PRIVATE_KEY` on `lcorneliussen/md365`.
+
+GitHub does not allow creating user PATs via API. A tap-scoped deploy key is the machine credential that can be provisioned without a browser. To rotate: generate a new ed25519 key, add it as a write deploy key on the tap, update the secret, delete the old key.
+
 ## Architecture
 ```
 main.go

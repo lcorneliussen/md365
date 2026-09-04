@@ -15,11 +15,11 @@ builds:
       - -s -w -X main.version={{.Version}} -X main.commit={{.Commit}}
 
 archives:
-  - format: tar.gz
+  - formats: [tar.gz]
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
     format_overrides:
       - goos: windows
-        format: zip
+        formats: [zip]
 
 checksum:
   name_template: checksums.txt
@@ -35,7 +35,9 @@ brews:
   - repository:
       owner: lcorneliussen
       name: homebrew-md365
-      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+      git:
+        url: git@github.com:lcorneliussen/homebrew-md365.git
+        private_key: "{{ .Env.HOMEBREW_TAP_SSH_PRIVATE_KEY }}"
     directory: Formula
     homepage: https://github.com/lcorneliussen/md365
     description: "AI- and human-friendly CLI for Microsoft 365 - calendars, contacts, and mail as Markdown"
