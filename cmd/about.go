@@ -45,6 +45,8 @@ var aboutCmd = &cobra.Command{
 		fmt.Fprintln(out, "  Calendar and contact list/search commands default to the local Markdown cache.")
 		fmt.Fprintln(out, "  Use --no-cache on supported commands to bypass local files and read Graph directly.")
 		fmt.Fprintln(out, "  Mail, Teams, OneDrive, SharePoint, and file search read Microsoft Graph directly.")
+		fmt.Fprintln(out, "  mail search uses Microsoft Search for the signed-in user's Exchange Online mailbox.")
+		fmt.Fprintln(out, "  mail list --search is for folder-aware, shared/delegated, or personal mailbox queries.")
 		fmt.Fprintln(out)
 		fmt.Fprintln(out, "Writes:")
 		fmt.Fprintln(out, "  Creating/deleting calendar events and sending mail always go through Graph.")
@@ -92,7 +94,7 @@ func newAboutInfo() aboutInfo {
 		ReadModel: map[string]string{
 			"calendar":   "cache-first; use --no-cache to read Microsoft Graph directly",
 			"contacts":   "cache-first; use --no-cache to read Microsoft Graph directly",
-			"mail":       "live Graph reads today; mail index cache is a planned read model",
+			"mail":       "live Microsoft Graph reads; mail search uses Microsoft Search for the signed-in user's Exchange Online mailbox, while mail list --search handles folder-aware, shared/delegated, or personal mailbox queries",
 			"teams":      "live Microsoft Graph reads",
 			"onedrive":   "live Microsoft Graph reads",
 			"sharepoint": "live Microsoft Graph reads",

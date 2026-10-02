@@ -25,3 +25,12 @@ func TestMailSearchRejectsBlankQueryAsUsageError(t *testing.T) {
 		t.Fatalf("error code = %q, want usage (error: %v)", apierr.As(err).Code, err)
 	}
 }
+
+func TestMailSearchRejectsInvalidArgumentCountsAsUsageError(t *testing.T) {
+	for _, args := range [][]string{nil, {"one", "two"}} {
+		err := mailSearchCmd.Args(mailSearchCmd, args)
+		if apierr.As(err).Code != apierr.CodeUsage {
+			t.Fatalf("args = %#v, error code = %q, want usage", args, apierr.As(err).Code)
+		}
+	}
+}

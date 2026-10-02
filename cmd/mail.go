@@ -43,7 +43,12 @@ var mailSearchCmd = &cobra.Command{
 Microsoft Search API. Results are newest-first by default. Use --top-results
 to promote the most relevant matches. For folder-aware, shared/delegated, or
 Microsoft personal mailbox search, use mail list --search instead.`,
-	Args: cobra.ExactArgs(1),
+	Args: func(cmd *cobra.Command, args []string) error {
+		if len(args) != 1 {
+			return usageError("mail search requires exactly one query argument")
+		}
+		return nil
+	},
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if mailAccount == "" {
 			return usageError("--account is required")
