@@ -29,6 +29,9 @@ func TestSchemaIsDeterministicAndCoversCommandSurface(t *testing.T) {
 		}
 		t.Fatalf("schema output is not deterministic: first has %d commands, second has %d", len(first.Commands), len(second.Commands))
 	}
+	if first.SchemaVersion != "1.1.0" {
+		t.Fatalf("schema version = %q, want 1.1.0", first.SchemaVersion)
+	}
 
 	paths := map[string]bool{}
 	for _, command := range first.Commands {

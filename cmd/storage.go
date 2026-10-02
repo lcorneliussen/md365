@@ -38,10 +38,11 @@ var filesSearchCmd = &cobra.Command{
 		if query == "" {
 			return usageError("search query must not be empty")
 		}
-		if filesSearchLimit <= 0 {
-			return usageError("--limit must be greater than zero")
+		requestLimit, err := lookaheadLimit(filesSearchLimit)
+		if err != nil {
+			return err
 		}
-		values, err := storage.Search(cfg, storageAccount, query, filesSearchLimit+1)
+		values, err := storage.Search(cfg, storageAccount, query, requestLimit)
 		if err != nil {
 			return err
 		}
@@ -81,10 +82,11 @@ var oneDriveListCmd = &cobra.Command{
 		if storagePath != "" && storageItemID != "" {
 			return usageError("--path and --item-id are mutually exclusive")
 		}
-		if storageLimit <= 0 {
-			return usageError("--limit must be greater than zero")
+		requestLimit, err := lookaheadLimit(storageLimit)
+		if err != nil {
+			return err
 		}
-		values, err := storage.ListOneDrive(cfg, storageAccount, storageItemID, storagePath, storageLimit+1)
+		values, err := storage.ListOneDrive(cfg, storageAccount, storageItemID, storagePath, requestLimit)
 		if err != nil {
 			return err
 		}
@@ -110,17 +112,15 @@ var sharePointLibrariesCmd = &cobra.Command{
 		if (storageTeamID == "") == (storageSiteID == "") {
 			return usageError("choose exactly one of --team-id or --site-id")
 		}
-		if storageLimit <= 0 {
-			return usageError("--limit must be greater than zero")
+		requestLimit, err := lookaheadLimit(storageLimit)
+		if err != nil {
+			return err
 		}
-		var (
-			values []storage.LibraryInfo
-			err    error
-		)
+		var values []storage.LibraryInfo
 		if storageTeamID != "" {
-			values, err = storage.ListTeamLibraries(cfg, storageAccount, storageTeamID, storageLimit+1)
+			values, err = storage.ListTeamLibraries(cfg, storageAccount, storageTeamID, requestLimit)
 		} else {
-			values, err = storage.ListSiteLibraries(cfg, storageAccount, storageSiteID, storageLimit+1)
+			values, err = storage.ListSiteLibraries(cfg, storageAccount, storageSiteID, requestLimit)
 		}
 		if err != nil {
 			return err
@@ -163,19 +163,17 @@ var sharePointListCmd = &cobra.Command{
 		if storagePath != "" && storageItemID != "" {
 			return usageError("--path and --item-id are mutually exclusive")
 		}
-		if storageLimit <= 0 {
-			return usageError("--limit must be greater than zero")
+		requestLimit, err := lookaheadLimit(storageLimit)
+		if err != nil {
+			return err
 		}
-		var (
-			values []storage.ItemInfo
-			err    error
-		)
+		var values []storage.ItemInfo
 		if storageDriveID != "" {
-			values, err = storage.ListDrive(cfg, storageAccount, storageDriveID, storageItemID, storagePath, storageLimit+1)
+			values, err = storage.ListDrive(cfg, storageAccount, storageDriveID, storageItemID, storagePath, requestLimit)
 		} else if storageTeamID != "" {
-			values, err = storage.ListTeamDrive(cfg, storageAccount, storageTeamID, storageItemID, storagePath, storageLimit+1)
+			values, err = storage.ListTeamDrive(cfg, storageAccount, storageTeamID, storageItemID, storagePath, requestLimit)
 		} else {
-			values, err = storage.ListSiteDrive(cfg, storageAccount, storageSiteID, storageItemID, storagePath, storageLimit+1)
+			values, err = storage.ListSiteDrive(cfg, storageAccount, storageSiteID, storageItemID, storagePath, requestLimit)
 		}
 		if err != nil {
 			return err

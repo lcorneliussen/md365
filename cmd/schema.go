@@ -13,7 +13,7 @@ import (
 	"github.com/spf13/pflag"
 )
 
-const commandSchemaVersion = "1.0.0"
+const commandSchemaVersion = "1.1.0"
 
 type schemaDocument struct {
 	SchemaVersion string             `json:"schema_version"`

@@ -1,6 +1,20 @@
 package cmd
 
-import "github.com/lcorneliussen/md365/internal/output"
+import (
+	"math"
+
+	"github.com/lcorneliussen/md365/internal/output"
+)
+
+func lookaheadLimit(limit int) (int, error) {
+	if limit <= 0 {
+		return 0, usageError("--limit must be greater than zero")
+	}
+	if limit == math.MaxInt {
+		return 0, usageError("--limit is too large")
+	}
+	return limit + 1, nil
+}
 
 func collectionPage[T any](values []T, limit int) ([]T, output.ResponseOption) {
 	hasMore := len(values) > limit

@@ -118,18 +118,42 @@ func prescanAutomationFlags(args []string) {
 			return
 		}
 		switch arg {
-		case "--json":
+		case "--json", "--json=true":
 			jsonFlag = true
-		case "--quiet":
+		case "--json=false":
+			jsonFlag = false
+		case "--quiet", "--quiet=true":
 			quietFlag = true
-		case "--results-only":
+		case "--quiet=false":
+			quietFlag = false
+		case "--results-only", "--results-only=true":
 			resultsOnlyFlag = true
-		case "--ids-only":
+		case "--results-only=false":
+			resultsOnlyFlag = false
+		case "--ids-only", "--ids-only=true":
 			idsOnlyFlag = true
-		case "--count":
+		case "--ids-only=false":
+			idsOnlyFlag = false
+		case "--count", "--count=true":
 			countFlag = true
-		case "--fail-empty":
+		case "--count=false":
+			countFlag = false
+		case "--fail-empty", "--fail-empty=true":
 			failEmptyFlag = true
+		case "--fail-empty=false":
+			failEmptyFlag = false
+		case "--read-only", "--read-only=true":
+			readOnlyFlag = true
+		case "--read-only=false":
+			readOnlyFlag = false
+		case "--no-input", "--no-input=true":
+			noInputFlag = true
+		case "--no-input=false":
+			noInputFlag = false
+		case "--dry-run", "--dry-run=true":
+			dryRunFlag = true
+		case "--dry-run=false":
+			dryRunFlag = false
 		case "--select":
 			selectProvidedFlag = true
 			if i+1 < len(args) {

@@ -31,10 +31,11 @@ var teamsListCmd = &cobra.Command{
 		if teamsAccount == "" {
 			return usageError("--account is required")
 		}
-		if teamsLimit <= 0 {
-			return usageError("--limit must be greater than zero")
+		requestLimit, err := lookaheadLimit(teamsLimit)
+		if err != nil {
+			return err
 		}
-		values, err := teams.List(cfg, teamsAccount, teamsLimit+1)
+		values, err := teams.List(cfg, teamsAccount, requestLimit)
 		if err != nil {
 			return err
 		}
@@ -64,10 +65,11 @@ var teamsChannelsCmd = &cobra.Command{
 		if teamsAccount == "" || teamsTeamID == "" {
 			return usageError("--account and --team-id are required")
 		}
-		if teamsLimit <= 0 {
-			return usageError("--limit must be greater than zero")
+		requestLimit, err := lookaheadLimit(teamsLimit)
+		if err != nil {
+			return err
 		}
-		values, err := teams.ListChannels(cfg, teamsAccount, teamsTeamID, teamsLimit+1)
+		values, err := teams.ListChannels(cfg, teamsAccount, teamsTeamID, requestLimit)
 		if err != nil {
 			return err
 		}
@@ -96,10 +98,11 @@ var teamsFilesCmd = &cobra.Command{
 		if teamsAccount == "" || teamsTeamID == "" || teamsChannelID == "" {
 			return usageError("--account, --team-id, and --channel-id are required")
 		}
-		if teamsLimit <= 0 {
-			return usageError("--limit must be greater than zero")
+		requestLimit, err := lookaheadLimit(teamsLimit)
+		if err != nil {
+			return err
 		}
-		values, err := storage.ListChannelFiles(cfg, teamsAccount, teamsTeamID, teamsChannelID, teamsItemID, teamsLimit+1)
+		values, err := storage.ListChannelFiles(cfg, teamsAccount, teamsTeamID, teamsChannelID, teamsItemID, requestLimit)
 		if err != nil {
 			return err
 		}

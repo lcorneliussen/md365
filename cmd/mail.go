@@ -56,10 +56,11 @@ Microsoft personal mailbox search, use mail list --search instead.`,
 		if strings.TrimSpace(args[0]) == "" {
 			return usageError("search query is required")
 		}
-		if mailSearchLimit <= 0 {
-			return usageError("--limit must be greater than zero")
+		requestLimit, err := lookaheadLimit(mailSearchLimit)
+		if err != nil {
+			return err
 		}
-		results, err := mail.Search(cfg, mailAccount, strings.TrimSpace(args[0]), mailSearchLimit+1, mailTopResults)
+		results, err := mail.Search(cfg, mailAccount, strings.TrimSpace(args[0]), requestLimit, mailTopResults)
 		if err != nil {
 			return err
 		}
@@ -86,8 +87,9 @@ var mailListCmd = &cobra.Command{
 		if mailAccount == "" {
 			return usageError("--account is required")
 		}
-		if mailLimit <= 0 {
-			return usageError("--limit must be greater than zero")
+		requestLimit, err := lookaheadLimit(mailLimit)
+		if err != nil {
+			return err
 		}
 
 		messages, err := mail.List(cfg, mailAccount, mail.ListOptions{
@@ -97,7 +99,7 @@ var mailListCmd = &cobra.Command{
 			Until:    mailUntil,
 			Unread:   mailUnread,
 			Folder:   mailFolder,
-			Limit:    mailLimit + 1,
+			Limit:    requestLimit,
 		})
 		if err != nil {
 			return err

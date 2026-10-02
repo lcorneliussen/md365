@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"math"
 	"reflect"
 	"testing"
 
@@ -102,6 +103,26 @@ func TestCollectionPageUsesOneItemLookahead(t *testing.T) {
 	option(&response)
 	if response.Meta["has_more"] != false || response.Meta["total"] != 2 {
 		t.Fatalf("exhausted page metadata = %#v", response.Meta)
+	}
+}
+
+func TestLookaheadLimitRejectsOverflow(t *testing.T) {
+	if _, err := lookaheadLimit(math.MaxInt); apierr.As(err).Code != apierr.CodeUsage {
+		t.Fatalf("maximum lookahead limit = %v", err)
+	}
+	if got, err := lookaheadLimit(25); err != nil || got != 26 {
+		t.Fatalf("normal lookahead limit = %d, %v", got, err)
+	}
+}
+
+func TestPrescanAutomationBooleanEqualsFormsAndOverrides(t *testing.T) {
+	previousJSON, previousFailEmpty := jsonFlag, failEmptyFlag
+	jsonFlag, failEmptyFlag = false, false
+	t.Cleanup(func() { jsonFlag, failEmptyFlag = previousJSON, previousFailEmpty })
+
+	prescanAutomationFlags([]string{"--json=true", "--json=false", "--fail-empty=true", "unknown"})
+	if jsonFlag || !failEmptyFlag {
+		t.Fatalf("prescanned boolean overrides = json:%v fail-empty:%v", jsonFlag, failEmptyFlag)
 	}
 }
 
