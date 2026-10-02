@@ -121,8 +121,12 @@ md365 onedrive list --account work
 md365 onedrive list --account work --path "Projects/Current"
 md365 onedrive list --account work --item-id <folder-item-id>
 
+md365 files search "Jahresabschluss 2023" --account work
+
+md365 sharepoint libraries --account work --team-id <team-id>
 md365 sharepoint list --account work --team-id <team-id>
 md365 sharepoint list --account work --site-id <site-id> --path "Projects/Current"
+md365 sharepoint list --account work --drive-id <drive-id>
 
 md365 mail send --account work \         # Send mail via API
   --to "colleague@company.com" \
@@ -135,6 +139,12 @@ md365 mail draft --account work \        # Create draft without sending
 md365 auth login --account work          # Device code OAuth login
 md365 auth status                        # Token status
 ```
+
+`sharepoint list --team-id` and `--site-id` browse the default document
+library. Use `sharepoint libraries` to discover additional libraries such as
+`Datenraum`, then pass the returned ID to `sharepoint list --drive-id`.
+`files search` searches all visible OneDrive and SharePoint content and returns
+stable item, drive, and site IDs for follow-up commands.
 
 ### Agent-Friendly Output
 

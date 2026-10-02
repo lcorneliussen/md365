@@ -66,7 +66,7 @@ internal/
   contacts/    # Contact sync
   graph/       # Microsoft Graph API client and types
   mail/        # Mail list, get, send
-  storage/     # OneDrive and SharePoint browsing
+  storage/     # OneDrive/SharePoint browsing, library discovery, and tenant-wide file search
   sync/        # Sync engine, markdown file writer
   teams/       # Teams and channel browsing
 ```
@@ -77,3 +77,4 @@ internal/
 - **Frontmatter dates:** RFC3339 with local timezone offset (e.g. `+01:00` CET, `+02:00` CEST).
 - **Read source model:** Calendar and contacts default to the local Markdown cache for fast search/filter. `--no-cache` means bypass local files and read directly from Microsoft Graph without updating the cache.
 - **Structured responses:** JSON output uses a stable envelope with `ok`, `data`, optional `summary`, `meta`, and `breadcrumbs`. Breadcrumbs should point agents to natural next commands such as listing attachments after reading an email.
+- **File discovery:** `files search` uses Microsoft Search across all visible OneDrive and SharePoint content. `sharepoint list` without `--drive-id` browses only the default library; enumerate non-default libraries with `sharepoint libraries`, then browse them by returned drive ID.

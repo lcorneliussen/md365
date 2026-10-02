@@ -44,7 +44,7 @@ var aboutCmd = &cobra.Command{
 		fmt.Fprintln(out, "Read model:")
 		fmt.Fprintln(out, "  Calendar and contact list/search commands default to the local Markdown cache.")
 		fmt.Fprintln(out, "  Use --no-cache on supported commands to bypass local files and read Graph directly.")
-		fmt.Fprintln(out, "  Mail, Teams, OneDrive, and SharePoint currently read Microsoft Graph directly.")
+		fmt.Fprintln(out, "  Mail, Teams, OneDrive, SharePoint, and file search read Microsoft Graph directly.")
 		fmt.Fprintln(out)
 		fmt.Fprintln(out, "Writes:")
 		fmt.Fprintln(out, "  Creating/deleting calendar events and sending mail always go through Graph.")
@@ -71,7 +71,10 @@ var aboutCmd = &cobra.Command{
 		fmt.Fprintln(out, "  md365 teams list --account <name>")
 		fmt.Fprintln(out, "  md365 teams files --account <name> --team-id <id> --channel-id <id>")
 		fmt.Fprintln(out, "  md365 onedrive list --account <name>")
+		fmt.Fprintln(out, "  md365 files search \"Jahresabschluss 2023\" --account <name>")
+		fmt.Fprintln(out, "  md365 sharepoint libraries --account <name> --team-id <id>")
 		fmt.Fprintln(out, "  md365 sharepoint list --account <name> --team-id <id>")
+		fmt.Fprintln(out, "  md365 sharepoint list --account <name> --drive-id <id>")
 		fmt.Fprintln(out)
 		fmt.Fprintln(out, "Agent interface:")
 		fmt.Fprintln(out, "  Use --json for stable envelopes with ok, data, summary, meta, and breadcrumbs.")
@@ -92,6 +95,7 @@ func newAboutInfo() aboutInfo {
 			"teams":      "live Microsoft Graph reads",
 			"onedrive":   "live Microsoft Graph reads",
 			"sharepoint": "live Microsoft Graph reads",
+			"files":      "tenant-wide live Microsoft Graph Search across visible OneDrive and SharePoint content",
 		},
 		Writes: []string{
 			"Calendar create/delete always goes through Microsoft Graph.",
@@ -116,7 +120,10 @@ func newAboutInfo() aboutInfo {
 			"md365 teams list --account <name>",
 			"md365 teams files --account <name> --team-id <id> --channel-id <id>",
 			"md365 onedrive list --account <name>",
+			"md365 files search \"Jahresabschluss 2023\" --account <name>",
+			"md365 sharepoint libraries --account <name> --team-id <id>",
 			"md365 sharepoint list --account <name> --team-id <id>",
+			"md365 sharepoint list --account <name> --drive-id <id>",
 		},
 	}
 }

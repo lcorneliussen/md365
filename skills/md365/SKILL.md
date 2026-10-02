@@ -12,6 +12,7 @@ Use `md365` for Microsoft 365 calendar, contact, mail, Teams, OneDrive, and Shar
 - Commands use account names from config, not email addresses. Common local names include `private`, `dcg`, `talendos`, and `oms`.
 - Calendar and contact read/search commands are cache-first. Use `--no-cache` when the user asks for live/fresh data or when the local cache may be stale.
 - Mail, Teams, OneDrive, and SharePoint reads use Microsoft Graph directly today.
+- Use `files search` for tenant-wide discovery across visible OneDrive and SharePoint content. A team's default drive is not the same as all of its libraries.
 - Writes always go through Microsoft Graph: calendar create/delete and mail send.
 - Cross-tenant guards use configured account domains. Do not bypass them with `--force` unless the user explicitly asks.
 
@@ -60,11 +61,18 @@ md365 teams list --account <name> --json
 md365 teams channels --account <name> --team-id <team-id> --json
 md365 teams files --account <name> --team-id <team-id> --channel-id <channel-id> --json
 md365 onedrive list --account <name> --path <folder-path> --json
+md365 files search "Jahresabschluss 2023" --account <name> --json
+md365 sharepoint libraries --account <name> --team-id <team-id> --json
 md365 sharepoint list --account <name> --team-id <team-id> --json
+md365 sharepoint list --account <name> --drive-id <drive-id> --json
 ```
 
 Use the returned `id` to descend into a folder with `--item-id`. File results
 also include `drive_id`, which identifies the OneDrive or SharePoint document
 library that owns the item.
+
+When a file is not in the default team library, run `sharepoint libraries` and
+use the returned drive ID with `sharepoint list --drive-id`. Search results
+already include the owning `drive_id` and stable item ID.
 
 Follow `breadcrumbs` when present. For example, `mail get --json` includes a `list_attachments` breadcrumb when a message has attachments.
