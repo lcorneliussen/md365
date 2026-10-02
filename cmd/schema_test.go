@@ -202,10 +202,10 @@ func TestSchemaPublishesOutputModesConstraintsAndFrameworkPolicy(t *testing.T) {
 		byPath[command.Path] = command
 	}
 
-	if !reflect.DeepEqual(byPath["md365 mail search"].OutputModes, []string{"human", "json", "quiet", "ids", "count"}) {
+	if !reflect.DeepEqual(byPath["md365 mail search"].OutputModes, []string{"human", "json", "quiet", "results_only", "ids", "count"}) {
 		t.Fatalf("mail search output modes = %#v", byPath["md365 mail search"].OutputModes)
 	}
-	if !reflect.DeepEqual(byPath["md365 schema"].OutputModes, []string{"human", "json", "quiet"}) {
+	if !reflect.DeepEqual(byPath["md365 schema"].OutputModes, []string{"human", "json", "quiet", "results_only"}) {
 		t.Fatalf("schema output modes = %#v", byPath["md365 schema"].OutputModes)
 	}
 	for _, path := range []string{"md365 auth add", "md365 auth login", "md365 skill"} {
@@ -253,9 +253,16 @@ func TestSchemaPublishesOnlyEmittedExitStatuses(t *testing.T) {
 		{Code: "ok", Status: 0},
 		{Code: "usage", Status: 1},
 		{Code: "unknown", Status: 1},
+		{Code: "not_found", Status: 2},
 		{Code: "auth", Status: 3},
+		{Code: "forbidden", Status: 4},
+		{Code: "rate_limit", Status: 5},
+		{Code: "network", Status: 6},
 		{Code: "graph", Status: 7},
 		{Code: "policy_denied", Status: 8},
+		{Code: "conflict", Status: 9},
+		{Code: "retryable", Status: 10},
+		{Code: "empty_result", Status: 11},
 	}
 	if !reflect.DeepEqual(document.ExitStatuses, want) {
 		t.Fatalf("exit statuses = %#v, want %#v", document.ExitStatuses, want)

@@ -36,11 +36,12 @@ type Response struct {
 }
 
 type ErrorResponse struct {
-	OK    bool           `json:"ok"`
-	Error string         `json:"error"`
-	Code  string         `json:"code"`
-	Hint  string         `json:"hint,omitempty"`
-	Meta  map[string]any `json:"meta,omitempty"`
+	OK         bool           `json:"ok"`
+	Error      string         `json:"error"`
+	Code       string         `json:"code"`
+	Hint       string         `json:"hint,omitempty"`
+	HTTPStatus int            `json:"http_status,omitempty"`
+	Meta       map[string]any `json:"meta,omitempty"`
 }
 
 type Options struct {
@@ -49,6 +50,8 @@ type Options struct {
 	Stderr          io.Writer
 	WrapUntrusted   bool
 	SanitizeContent bool
+	Select          []string
+	FailEmpty       bool
 }
 
 type ResponseOption func(*Response)
@@ -89,17 +92,36 @@ func (w *Writer) Format() Format {
 }
 
 func (w *Writer) IsHuman() bool {
-	return w.opts.Format == FormatHuman && !w.opts.WrapUntrusted && !w.opts.SanitizeContent
+	return w.opts.Format == FormatHuman && !w.opts.WrapUntrusted && !w.opts.SanitizeContent && len(w.opts.Select) == 0 && !w.opts.FailEmpty
 }
 
 func (w *Writer) OK(data any, opts ...ResponseOption) error {
 	data = normalizeData(data)
+	if w.opts.FailEmpty && isEmptyResult(data) {
+		return apierr.Empty("command returned no results")
+	}
 	if (w.opts.WrapUntrusted || w.opts.SanitizeContent) && w.opts.Format != FormatIDs && w.opts.Format != FormatCount {
 		data = ProtectUntrusted(data, ContentSafetyOptions{Wrap: w.opts.WrapUntrusted, Sanitize: w.opts.SanitizeContent})
+	}
+	if len(w.opts.Select) > 0 {
+		projected, err := projectFields(data, w.opts.Select)
+		if err != nil {
+			return err
+		}
+		data = projected
 	}
 	resp := Response{OK: true, Data: data}
 	for _, opt := range opts {
 		opt(&resp)
+	}
+	if count, ok := collectionCount(data); ok {
+		if resp.Meta == nil {
+			resp.Meta = map[string]any{}
+		}
+		resp.Meta["count"] = count
+		if _, exists := resp.Meta["has_more"]; !exists {
+			resp.Meta["has_more"] = nil
+		}
 	}
 	if w.opts.WrapUntrusted || w.opts.SanitizeContent {
 		if resp.Meta == nil {
@@ -135,11 +157,12 @@ func (w *Writer) Err(err error) {
 	e := apierr.As(err)
 	if !w.IsHuman() {
 		_ = writeJSON(w.opts.Stderr, ErrorResponse{
-			OK:    false,
-			Error: e.Message,
-			Code:  e.Code,
-			Hint:  e.Hint,
-			Meta:  e.Meta,
+			OK:         false,
+			Error:      e.Message,
+			Code:       e.Code,
+			Hint:       e.Hint,
+			HTTPStatus: e.HTTPStatus,
+			Meta:       e.Meta,
 		})
 		return
 	}
@@ -169,6 +192,12 @@ func ExitCodeFor(err error) int {
 		return 7
 	case apierr.CodePolicy:
 		return 8
+	case apierr.CodeConflict:
+		return 9
+	case apierr.CodeRetryable:
+		return 10
+	case apierr.CodeEmpty:
+		return 11
 	default:
 		return 1
 	}

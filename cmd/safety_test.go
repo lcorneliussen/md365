@@ -140,7 +140,7 @@ func TestPrescanContentSafetyFlagsBeforeUnknownCommand(t *testing.T) {
 	wrapUntrustedFlag, sanitizeContentFlag = false, false
 	t.Cleanup(func() { wrapUntrustedFlag, sanitizeContentFlag = oldWrap, oldSanitize })
 
-	prescanContentSafetyFlags([]string{"--wrap-untrusted", "--sanitize-content=true", "unknown", "--wrap-untrusted=false"})
+	prescanAutomationFlags([]string{"--wrap-untrusted", "--sanitize-content=true", "unknown", "--wrap-untrusted=false"})
 	if !wrapUntrustedFlag || !sanitizeContentFlag {
 		t.Fatalf("prescanned flags = wrap:%v sanitize:%v", wrapUntrustedFlag, sanitizeContentFlag)
 	}

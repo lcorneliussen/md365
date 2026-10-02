@@ -22,9 +22,11 @@ execution-policy catalog at runtime. Tests compare that generated surface with
 the legacy `commands --json` catalog and fail when a runnable command lacks an
 explicit execution policy, preventing command/documentation drift in CI.
 
-Only error codes currently emitted by md365 appear in `exit_statuses`. Reserved
-API error constants are not part of the published contract until runtime
-classification emits them consistently.
+Only error codes emitted by md365 appear in `exit_statuses`. Microsoft Graph
+HTTP responses are classified into stable authentication, authorization,
+not-found, throttling, conflict, transient, and general Graph errors. The
+complete mapping and automation flags are documented in
+[`automation-output.md`](automation-output.md).
 
 The `policy_denied` status (8) is emitted when `--read-only`, `--no-input`, or
 `--dry-run` rejects an invocation. Dry-run output describes the Microsoft 365

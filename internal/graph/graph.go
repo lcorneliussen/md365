@@ -285,7 +285,7 @@ func (c *Client) DeleteEvent(eventID string) error {
 	client := &http.Client{Timeout: 30 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
-		return fmt.Errorf("request failed: %w", err)
+		return apierr.Network("Microsoft Graph request failed", err)
 	}
 	defer resp.Body.Close()
 
@@ -496,7 +496,7 @@ func (c *Client) DeleteMessage(id string) error {
 	client := &http.Client{Timeout: 30 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
-		return fmt.Errorf("request failed: %w", err)
+		return apierr.Network("Microsoft Graph request failed", err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusNoContent {
@@ -583,7 +583,7 @@ func (c *Client) doRequestHeaders(method, reqURL string, body []byte, headers ma
 	client := &http.Client{Timeout: 30 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("request failed: %w", err)
+		return nil, apierr.Network("Microsoft Graph request failed", err)
 	}
 	defer resp.Body.Close()
 

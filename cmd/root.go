@@ -18,8 +18,11 @@ var (
 	writer              *output.Writer
 	jsonFlag            bool
 	quietFlag           bool
+	resultsOnlyFlag     bool
 	idsOnlyFlag         bool
 	countFlag           bool
+	selectFlag          string
+	failEmptyFlag       bool
 	readOnlyFlag        bool
 	noInputFlag         bool
 	dryRunFlag          bool
@@ -64,7 +67,7 @@ func prepareCommand(cmd *cobra.Command, args []string) error {
 
 // Execute adds all child commands to the root command and sets flags appropriately.
 func Execute() int {
-	prescanContentSafetyFlags(os.Args[1:])
+	prescanAutomationFlags(os.Args[1:])
 	if err := rootCmd.Execute(); err != nil {
 		if errors.Is(err, errDryRunComplete) {
 			return 0
@@ -78,12 +81,30 @@ func Execute() int {
 	return 0
 }
 
-func prescanContentSafetyFlags(args []string) {
-	for _, arg := range args {
+func prescanAutomationFlags(args []string) {
+	for i := 0; i < len(args); i++ {
+		arg := args[i]
 		if !strings.HasPrefix(arg, "-") {
 			return
 		}
 		switch arg {
+		case "--json":
+			jsonFlag = true
+		case "--quiet":
+			quietFlag = true
+		case "--results-only":
+			resultsOnlyFlag = true
+		case "--ids-only":
+			idsOnlyFlag = true
+		case "--count":
+			countFlag = true
+		case "--fail-empty":
+			failEmptyFlag = true
+		case "--select":
+			if i+1 < len(args) {
+				i++
+				selectFlag = args[i]
+			}
 		case "--wrap-untrusted", "--wrap-untrusted=true":
 			wrapUntrustedFlag = true
 		case "--wrap-untrusted=false":
@@ -92,6 +113,10 @@ func prescanContentSafetyFlags(args []string) {
 			sanitizeContentFlag = true
 		case "--sanitize-content=false":
 			sanitizeContentFlag = false
+		default:
+			if value, ok := strings.CutPrefix(arg, "--select="); ok {
+				selectFlag = value
+			}
 		}
 	}
 }
@@ -103,6 +128,8 @@ func newOutputWriter(stdout, stderr io.Writer) *output.Writer {
 		Stderr:          stderr,
 		WrapUntrusted:   wrapUntrustedFlag,
 		SanitizeContent: sanitizeContentFlag,
+		Select:          selectedFields(),
+		FailEmpty:       failEmptyFlag,
 	})
 }
 
@@ -110,7 +137,7 @@ func outputFormat() output.Format {
 	switch {
 	case jsonFlag:
 		return output.FormatJSON
-	case quietFlag:
+	case quietFlag || resultsOnlyFlag:
 		return output.FormatQuiet
 	case idsOnlyFlag:
 		return output.FormatIDs
@@ -129,6 +156,9 @@ func validateOutputFlags() error {
 	if quietFlag {
 		selected = append(selected, "--quiet")
 	}
+	if resultsOnlyFlag {
+		selected = append(selected, "--results-only")
+	}
 	if idsOnlyFlag {
 		selected = append(selected, "--ids-only")
 	}
@@ -138,7 +168,26 @@ func validateOutputFlags() error {
 	if len(selected) > 1 {
 		return apierr.Usage("choose only one output format: " + strings.Join(selected, ", "))
 	}
+	if strings.TrimSpace(selectFlag) != "" && (idsOnlyFlag || countFlag) {
+		return apierr.Usage("--select cannot be combined with --ids-only or --count")
+	}
+	if selectFlag != "" && len(selectedFields()) == 0 {
+		return apierr.Usage("--select requires at least one field")
+	}
 	return nil
+}
+
+func selectedFields() []string {
+	seen := map[string]bool{}
+	var fields []string
+	for _, field := range strings.Split(selectFlag, ",") {
+		field = strings.TrimSpace(field)
+		if field != "" && !seen[field] {
+			seen[field] = true
+			fields = append(fields, field)
+		}
+	}
+	return fields
 }
 
 func commandSkipsConfig(cmd *cobra.Command) bool {
@@ -164,8 +213,11 @@ func init() {
 	rootCmd.PersistentFlags().BoolVarP(&Interactive, "interactive", "i", false, "Use interactive TUI mode")
 	rootCmd.PersistentFlags().BoolVar(&jsonFlag, "json", false, "Output a stable JSON envelope")
 	rootCmd.PersistentFlags().BoolVar(&quietFlag, "quiet", false, "Output result data only")
+	rootCmd.PersistentFlags().BoolVar(&resultsOnlyFlag, "results-only", false, "Output result data without the response envelope")
 	rootCmd.PersistentFlags().BoolVar(&idsOnlyFlag, "ids-only", false, "Output only result IDs, one per line")
 	rootCmd.PersistentFlags().BoolVar(&countFlag, "count", false, "Output only the result count")
+	rootCmd.PersistentFlags().StringVar(&selectFlag, "select", "", "Project comma-separated response fields")
+	rootCmd.PersistentFlags().BoolVar(&failEmptyFlag, "fail-empty", false, "Return empty_result when a command returns no results")
 	rootCmd.PersistentFlags().BoolVar(&readOnlyFlag, "read-only", false, "Block commands that write Microsoft 365 or local state")
 	rootCmd.PersistentFlags().BoolVar(&noInputFlag, "no-input", false, "Fail instead of prompting, opening a browser, or waiting for authentication")
 	rootCmd.PersistentFlags().BoolVar(&dryRunFlag, "dry-run", false, "Validate and preview a supported mutation without executing it")

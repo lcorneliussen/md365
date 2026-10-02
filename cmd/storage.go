@@ -41,10 +41,11 @@ var filesSearchCmd = &cobra.Command{
 		if filesSearchLimit <= 0 {
 			return usageError("--limit must be greater than zero")
 		}
-		values, err := storage.Search(cfg, storageAccount, query, filesSearchLimit)
+		values, err := storage.Search(cfg, storageAccount, query, filesSearchLimit+1)
 		if err != nil {
 			return err
 		}
+		values, page := collectionPage(values, filesSearchLimit)
 		if writer.IsHuman() {
 			printSearchResults(cmd, values)
 			return nil
@@ -58,6 +59,7 @@ var filesSearchCmd = &cobra.Command{
 				Command:     "md365 sharepoint list --account <name> --drive-id <drive-id> --item-id <folder-item-id>",
 				Description: "Browse a matched folder by stable drive and item IDs",
 			}),
+			page,
 		)
 	},
 }
@@ -82,11 +84,12 @@ var oneDriveListCmd = &cobra.Command{
 		if storageLimit <= 0 {
 			return usageError("--limit must be greater than zero")
 		}
-		values, err := storage.ListOneDrive(cfg, storageAccount, storageItemID, storagePath, storageLimit)
+		values, err := storage.ListOneDrive(cfg, storageAccount, storageItemID, storagePath, storageLimit+1)
 		if err != nil {
 			return err
 		}
-		return writeStorageItems(cmd, values, "onedrive")
+		values, page := collectionPage(values, storageLimit)
+		return writeStorageItems(cmd, values, "onedrive", page)
 	},
 }
 
@@ -115,13 +118,14 @@ var sharePointLibrariesCmd = &cobra.Command{
 			err    error
 		)
 		if storageTeamID != "" {
-			values, err = storage.ListTeamLibraries(cfg, storageAccount, storageTeamID, storageLimit)
+			values, err = storage.ListTeamLibraries(cfg, storageAccount, storageTeamID, storageLimit+1)
 		} else {
-			values, err = storage.ListSiteLibraries(cfg, storageAccount, storageSiteID, storageLimit)
+			values, err = storage.ListSiteLibraries(cfg, storageAccount, storageSiteID, storageLimit+1)
 		}
 		if err != nil {
 			return err
 		}
+		values, page := collectionPage(values, storageLimit)
 		if writer.IsHuman() {
 			printLibraries(cmd, values)
 			return nil
@@ -134,6 +138,7 @@ var sharePointLibrariesCmd = &cobra.Command{
 				Command:     "md365 sharepoint list --account <name> --drive-id <drive-id>",
 				Description: "Browse a document library by its returned drive ID",
 			}),
+			page,
 		)
 	},
 }
@@ -166,16 +171,17 @@ var sharePointListCmd = &cobra.Command{
 			err    error
 		)
 		if storageDriveID != "" {
-			values, err = storage.ListDrive(cfg, storageAccount, storageDriveID, storageItemID, storagePath, storageLimit)
+			values, err = storage.ListDrive(cfg, storageAccount, storageDriveID, storageItemID, storagePath, storageLimit+1)
 		} else if storageTeamID != "" {
-			values, err = storage.ListTeamDrive(cfg, storageAccount, storageTeamID, storageItemID, storagePath, storageLimit)
+			values, err = storage.ListTeamDrive(cfg, storageAccount, storageTeamID, storageItemID, storagePath, storageLimit+1)
 		} else {
-			values, err = storage.ListSiteDrive(cfg, storageAccount, storageSiteID, storageItemID, storagePath, storageLimit)
+			values, err = storage.ListSiteDrive(cfg, storageAccount, storageSiteID, storageItemID, storagePath, storageLimit+1)
 		}
 		if err != nil {
 			return err
 		}
-		return writeStorageItems(cmd, values, "sharepoint")
+		values, page := collectionPage(values, storageLimit)
+		return writeStorageItems(cmd, values, "sharepoint", page)
 	},
 }
 
@@ -211,16 +217,17 @@ func addStorageListFlags(cmd *cobra.Command) {
 	cmd.Flags().IntVar(&storageLimit, "limit", 100, "Maximum files and folders")
 }
 
-func writeStorageItems(cmd *cobra.Command, values []storage.ItemInfo, source string) error {
+func writeStorageItems(cmd *cobra.Command, values []storage.ItemInfo, source string, options ...output.ResponseOption) error {
 	if writer.IsHuman() {
 		printStorageItems(cmd, values)
 		return nil
 	}
-	return writeOK(values,
+	base := []output.ResponseOption{
 		output.WithSummary(fmt.Sprintf("%d files and folders", len(values))),
 		output.WithMeta("source", "graph"),
 		output.WithMeta("storage", source),
-	)
+	}
+	return writeOK(values, append(base, options...)...)
 }
 
 func printStorageItems(cmd *cobra.Command, values []storage.ItemInfo) {

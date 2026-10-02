@@ -77,6 +77,7 @@ var calListCmd = &cobra.Command{
 		return writeOK(events,
 			output.WithSummary(fmt.Sprintf("%d calendar events", len(events))),
 			output.WithMeta("source", sourceName(calNoCache)),
+			completeCollection(len(events)),
 		)
 	},
 }

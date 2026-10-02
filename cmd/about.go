@@ -85,7 +85,8 @@ var aboutCmd = &cobra.Command{
 		fmt.Fprintln(out)
 		fmt.Fprintln(out, "Agent interface:")
 		fmt.Fprintln(out, "  Use --json for stable envelopes with ok, data, summary, meta, and breadcrumbs.")
-		fmt.Fprintln(out, "  Use --ids-only or --count for compact scripting output.")
+		fmt.Fprintln(out, "  Use --results-only to unwrap data and --select to project known response fields.")
+		fmt.Fprintln(out, "  Use --ids-only or --count for compact scripting output; --fail-empty rejects empty results.")
 		fmt.Fprintln(out, "  mail get --json includes an attachment breadcrumb when attachments exist.")
 		return nil
 	},

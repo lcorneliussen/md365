@@ -14,6 +14,9 @@ const (
 	CodeNetwork   = "network"
 	CodeGraph     = "graph"
 	CodePolicy    = "policy_denied"
+	CodeConflict  = "conflict"
+	CodeRetryable = "retryable"
+	CodeEmpty     = "empty_result"
 	CodeUnknown   = "unknown"
 )
 
@@ -46,6 +49,14 @@ func Policy(message string) *Error {
 	return &Error{Code: CodePolicy, Message: message}
 }
 
+func Empty(message string) *Error {
+	return &Error{Code: CodeEmpty, Message: message}
+}
+
+func Network(message string, cause error) *Error {
+	return &Error{Code: CodeNetwork, Message: message, Cause: cause}
+}
+
 func Auth(account string) *Error {
 	return &Error{
 		Code:    CodeAuth,
@@ -55,11 +66,30 @@ func Auth(account string) *Error {
 }
 
 func Graph(status int, message string) *Error {
-	return &Error{Code: CodeGraph, Message: message, HTTPStatus: status}
+	return &Error{Code: graphCode(status), Message: message, HTTPStatus: status}
 }
 
 func WrapGraph(status int, message string, cause error) *Error {
-	return &Error{Code: CodeGraph, Message: message, HTTPStatus: status, Cause: cause}
+	return &Error{Code: graphCode(status), Message: message, HTTPStatus: status, Cause: cause}
+}
+
+func graphCode(status int) string {
+	switch status {
+	case 401:
+		return CodeAuth
+	case 403:
+		return CodeForbidden
+	case 404:
+		return CodeNotFound
+	case 409, 412:
+		return CodeConflict
+	case 429:
+		return CodeRateLimit
+	case 408, 425, 500, 502, 503, 504:
+		return CodeRetryable
+	default:
+		return CodeGraph
+	}
 }
 
 func As(err error) *Error {

@@ -63,7 +63,7 @@ Errors use:
 }
 ```
 
-Use `--ids-only` when a later command only needs IDs, and `--count` when only cardinality matters.
+Use `--ids-only` when a later command only needs IDs, and `--count` when only cardinality matters. Use `--results-only` to omit the response envelope, `--select id,name` to project known fields, and `--fail-empty` when no matching Microsoft 365 resource must fail the workflow. JSON collection envelopes publish `meta.count` and `meta.has_more`; do not treat a missing continuation cursor as permission to reuse a Microsoft Graph URL.
 
 ## Useful Commands
 

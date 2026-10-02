@@ -34,10 +34,11 @@ var teamsListCmd = &cobra.Command{
 		if teamsLimit <= 0 {
 			return usageError("--limit must be greater than zero")
 		}
-		values, err := teams.List(cfg, teamsAccount, teamsLimit)
+		values, err := teams.List(cfg, teamsAccount, teamsLimit+1)
 		if err != nil {
 			return err
 		}
+		values, page := collectionPage(values, teamsLimit)
 		if writer.IsHuman() {
 			for _, value := range values {
 				fmt.Fprintf(cmd.OutOrStdout(), "%s\n  %s\n", value.DisplayName, value.ID)
@@ -50,6 +51,7 @@ var teamsListCmd = &cobra.Command{
 		return writeOK(values,
 			output.WithSummary(fmt.Sprintf("%d teams", len(values))),
 			output.WithMeta("source", "graph"),
+			page,
 		)
 	},
 }
@@ -65,10 +67,11 @@ var teamsChannelsCmd = &cobra.Command{
 		if teamsLimit <= 0 {
 			return usageError("--limit must be greater than zero")
 		}
-		values, err := teams.ListChannels(cfg, teamsAccount, teamsTeamID, teamsLimit)
+		values, err := teams.ListChannels(cfg, teamsAccount, teamsTeamID, teamsLimit+1)
 		if err != nil {
 			return err
 		}
+		values, page := collectionPage(values, teamsLimit)
 		if writer.IsHuman() {
 			for _, value := range values {
 				fmt.Fprintf(cmd.OutOrStdout(), "%s  [%s]\n  %s\n", value.DisplayName, value.MembershipType, value.ID)
@@ -81,6 +84,7 @@ var teamsChannelsCmd = &cobra.Command{
 		return writeOK(values,
 			output.WithSummary(fmt.Sprintf("%d channels", len(values))),
 			output.WithMeta("source", "graph"),
+			page,
 		)
 	},
 }
@@ -95,10 +99,11 @@ var teamsFilesCmd = &cobra.Command{
 		if teamsLimit <= 0 {
 			return usageError("--limit must be greater than zero")
 		}
-		values, err := storage.ListChannelFiles(cfg, teamsAccount, teamsTeamID, teamsChannelID, teamsItemID, teamsLimit)
+		values, err := storage.ListChannelFiles(cfg, teamsAccount, teamsTeamID, teamsChannelID, teamsItemID, teamsLimit+1)
 		if err != nil {
 			return err
 		}
+		values, page := collectionPage(values, teamsLimit)
 		if writer.IsHuman() {
 			printStorageItems(cmd, values)
 			return nil
@@ -107,6 +112,7 @@ var teamsFilesCmd = &cobra.Command{
 			output.WithSummary(fmt.Sprintf("%d files and folders", len(values))),
 			output.WithMeta("source", "graph"),
 			output.WithMeta("storage", "sharepoint"),
+			page,
 		)
 	},
 }

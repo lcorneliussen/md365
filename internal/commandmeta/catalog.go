@@ -141,7 +141,7 @@ func Lookup(path string) (Policy, bool) {
 	policy, ok := policies[path]
 	if ok {
 		if len(policy.OutputModes) == 0 {
-			policy.OutputModes = []string{"human", "json", "quiet"}
+			policy.OutputModes = []string{"human", "json", "quiet", "results_only"}
 		}
 		if collectionOutputCommands[path] {
 			policy.OutputModes = append(policy.OutputModes, "ids", "count")
