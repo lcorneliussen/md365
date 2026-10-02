@@ -43,11 +43,11 @@ var policies = map[string]Policy{
 	"completion fish":       {Mutability: Read, OutputModes: []string{"human"}},
 	"completion powershell": {Mutability: Read, OutputModes: []string{"human"}},
 	"completion zsh":        {Mutability: Read, OutputModes: []string{"human"}},
-	"skill":                 {Mutability: Read},
+	"skill":                 {Mutability: Read, OutputModes: []string{"human"}},
 	"skill install":         {Mutability: Write, Effects: []string{"local_write"}},
-	"auth add":              {Mutability: Write, CanPrompt: true, Effects: []string{"local_write", "authentication", "browser", "keyring_write"}},
+	"auth add":              {Mutability: Write, CanPrompt: true, Effects: []string{"local_write", "authentication", "browser", "keyring_write"}, OutputModes: []string{"human"}},
 	"auth explain":          {Mutability: Read, Effects: []string{"keyring_read"}},
-	"auth login":            {Mutability: Write, CanPrompt: true, Effects: []string{"authentication", "browser", "keyring_write"}},
+	"auth login":            {Mutability: Write, CanPrompt: true, Effects: []string{"authentication", "browser", "keyring_write"}, OutputModes: []string{"human"}},
 	"auth plan":             {Mutability: Read},
 	"auth refresh":          {Mutability: Write, Effects: []string{"authentication", "keyring_write"}},
 	"auth scopes":           {Mutability: Read, Effects: []string{"keyring_read"}},
@@ -85,6 +85,7 @@ var collectionOutputCommands = map[string]bool{
 var constraints = map[string][]Constraint{
 	"auth add":             {{Kind: "mutually_exclusive", Description: "Raw scopes cannot be combined with command or feature selection", Options: []InputOption{{Flags: []string{"scopes"}}, {Flags: []string{"command", "feature"}}}}},
 	"auth login":           {{Kind: "mutually_exclusive", Description: "A scope override cannot be combined with command or feature selection", Options: []InputOption{{Flags: []string{"scope"}}, {Flags: []string{"command", "feature"}}}}},
+	"auth plan":            {{Kind: "at_least_one", Description: "Select at least one command or feature bundle", Options: []InputOption{{Flags: []string{"command"}}, {Flags: []string{"feature"}}}}},
 	"cal delete":           {{Kind: "at_least_one", Description: "Identify the event by cached file or by account and event ID", Options: []InputOption{{Arguments: []string{"file"}}, {Flags: []string{"account", "id"}}}}},
 	"mail mark-read":       {{Kind: "at_least_one", Description: "Provide message IDs as positional arguments or --id", Options: []InputOption{{Arguments: []string{"MESSAGE_ID"}}, {Flags: []string{"id"}}}}},
 	"mail archive":         {{Kind: "at_least_one", Description: "Provide message IDs as positional arguments or --id", Options: []InputOption{{Arguments: []string{"MESSAGE_ID"}}, {Flags: []string{"id"}}}}},
@@ -139,7 +140,8 @@ func Lookup(path string) (Policy, bool) {
 
 func All() map[string]Policy {
 	result := make(map[string]Policy, len(policies))
-	for path, policy := range policies {
+	for path := range policies {
+		policy, _ := Lookup(path)
 		result[path] = policy
 	}
 	return result

@@ -142,6 +142,11 @@ func TestSchemaPublishesOutputModesConstraintsAndFrameworkPolicy(t *testing.T) {
 	if !reflect.DeepEqual(byPath["md365 schema"].OutputModes, []string{"human", "json", "quiet"}) {
 		t.Fatalf("schema output modes = %#v", byPath["md365 schema"].OutputModes)
 	}
+	for _, path := range []string{"md365 auth add", "md365 auth login", "md365 skill"} {
+		if !reflect.DeepEqual(byPath[path].OutputModes, []string{"human"}) {
+			t.Fatalf("%s output modes = %#v", path, byPath[path].OutputModes)
+		}
+	}
 	if byPath["md365 help"].Mutability != commandmeta.Read || !reflect.DeepEqual(byPath["md365 help"].OutputModes, []string{"human"}) {
 		t.Fatalf("help contract = %#v", byPath["md365 help"])
 	}
@@ -155,6 +160,27 @@ func TestSchemaPublishesOutputModesConstraintsAndFrameworkPolicy(t *testing.T) {
 		if len(constraints) != 1 || constraints[0].Kind != "at_least_one" {
 			t.Fatalf("%s constraints = %#v", path, constraints)
 		}
+	}
+	authPlan := byPath["md365 auth plan"].Constraints
+	if len(authPlan) != 1 || authPlan[0].Kind != "at_least_one" {
+		t.Fatalf("auth plan constraints = %#v", authPlan)
+	}
+}
+
+func TestSchemaPublishesOnlyEmittedExitStatuses(t *testing.T) {
+	document, err := buildSchema(rootCmd)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []schemaExitStatus{
+		{Code: "ok", Status: 0},
+		{Code: "usage", Status: 1},
+		{Code: "unknown", Status: 1},
+		{Code: "auth", Status: 3},
+		{Code: "graph", Status: 7},
+	}
+	if !reflect.DeepEqual(document.ExitStatuses, want) {
+		t.Fatalf("exit statuses = %#v, want %#v", document.ExitStatuses, want)
 	}
 }
 

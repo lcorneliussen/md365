@@ -20,3 +20,7 @@ The schema is generated from the Cobra command tree, capability catalog, and
 execution-policy catalog at runtime. Tests compare that generated surface with
 the legacy `commands --json` catalog and fail when a runnable command lacks an
 explicit execution policy, preventing command/documentation drift in CI.
+
+Only error codes currently emitted by md365 appear in `exit_statuses`. Reserved
+API error constants are not part of the published contract until runtime
+classification emits them consistently.
