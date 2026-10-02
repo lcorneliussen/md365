@@ -261,69 +261,15 @@ func parseFlexibleDateTime(input, timezoneName string) (string, error) {
 
 // Create creates a new calendar event
 func Create(cfg *config.Config, account, subject, start, end, location, body string, attendees []string, force bool) (string, error) {
-	// Check cross-tenant unless force is enabled
-	if !force && len(attendees) > 0 {
-		if err := cfg.CheckCrossTenant(account, attendees); err != nil {
-			return "", err
-		}
+	event, err := PlanCreate(cfg, account, subject, start, end, location, body, attendees, force)
+	if err != nil {
+		return "", err
 	}
-
-	// Get access token
 	token, err := auth.GetAccessToken(cfg, account)
 	if err != nil {
 		return "", err
 	}
-
-	// Parse and convert datetimes to configured timezone
-	startDateTime, err := parseFlexibleDateTime(start, cfg.Timezone)
-	if err != nil {
-		return "", fmt.Errorf("invalid start datetime: %w", err)
-	}
-
-	endDateTime, err := parseFlexibleDateTime(end, cfg.Timezone)
-	if err != nil {
-		return "", fmt.Errorf("invalid end datetime: %w", err)
-	}
-
-	// Create event
-	client := graph.NewClient(token)
-
-	event := &graph.Event{
-		Subject: subject,
-		Start: graph.DateTime{
-			DateTime: startDateTime,
-			TimeZone: cfg.Timezone,
-		},
-		End: graph.DateTime{
-			DateTime: endDateTime,
-			TimeZone: cfg.Timezone,
-		},
-	}
-
-	if location != "" {
-		event.Location = &graph.Location{DisplayName: location}
-	}
-
-	if body != "" {
-		event.Body = &graph.Body{
-			ContentType: "text",
-			Content:     body,
-		}
-	}
-
-	// Add attendees
-	if len(attendees) > 0 {
-		event.Attendees = make([]graph.Attendee, len(attendees))
-		for i, email := range attendees {
-			event.Attendees[i] = graph.Attendee{
-				EmailAddress: graph.EmailAddress{
-					Address: email,
-				},
-			}
-		}
-	}
-
-	created, err := client.CreateEvent(event)
+	created, err := graph.NewClient(token).CreateEvent(event)
 	if err != nil {
 		return "", err
 	}
@@ -337,40 +283,54 @@ func Create(cfg *config.Config, account, subject, start, end, location, body str
 	return filePath, nil
 }
 
-// Delete deletes a calendar event
-func Delete(cfg *config.Config, account, id, filePath string) (string, error) {
-	// If file provided, extract account and ID
-	if filePath != "" {
-		data, err := os.ReadFile(filePath)
-		if err != nil {
-			return "", fmt.Errorf("failed to read file: %w", err)
-		}
-
-		content := string(data)
-		parts := strings.SplitN(content, "---", 3)
-		if len(parts) < 3 {
-			return "", fmt.Errorf("invalid frontmatter in file")
-		}
-
-		var fm map[string]interface{}
-		if err := yaml.Unmarshal([]byte(parts[1]), &fm); err != nil {
-			return "", fmt.Errorf("failed to parse frontmatter: %w", err)
-		}
-
-		var ok bool
-		account, ok = fm["account"].(string)
-		if !ok {
-			return "", fmt.Errorf("account not found in frontmatter")
-		}
-
-		id, ok = fm["id"].(string)
-		if !ok {
-			return "", fmt.Errorf("id not found in frontmatter")
+// PlanCreate validates and normalizes an Outlook calendar event without
+// acquiring a token or issuing a Microsoft Graph request.
+func PlanCreate(cfg *config.Config, account, subject, start, end, location, body string, attendees []string, force bool) (*graph.Event, error) {
+	if _, err := cfg.GetAccount(account); err != nil {
+		return nil, err
+	}
+	if !force && len(attendees) > 0 {
+		if err := cfg.CheckCrossTenant(account, attendees); err != nil {
+			return nil, err
 		}
 	}
+	startDateTime, err := parseFlexibleDateTime(start, cfg.Timezone)
+	if err != nil {
+		return nil, fmt.Errorf("invalid start datetime: %w", err)
+	}
+	endDateTime, err := parseFlexibleDateTime(end, cfg.Timezone)
+	if err != nil {
+		return nil, fmt.Errorf("invalid end datetime: %w", err)
+	}
 
-	if account == "" || id == "" {
-		return "", fmt.Errorf("account and id are required")
+	event := &graph.Event{
+		Subject: subject,
+		Start:   graph.DateTime{DateTime: startDateTime, TimeZone: cfg.Timezone},
+		End:     graph.DateTime{DateTime: endDateTime, TimeZone: cfg.Timezone},
+	}
+	if location != "" {
+		event.Location = &graph.Location{DisplayName: location}
+	}
+	if body != "" {
+		event.Body = &graph.Body{ContentType: "text", Content: body}
+	}
+	if len(attendees) > 0 {
+		event.Attendees = make([]graph.Attendee, len(attendees))
+		for i, email := range attendees {
+			event.Attendees[i] = graph.Attendee{EmailAddress: graph.EmailAddress{Address: email}}
+		}
+	}
+	return event, nil
+}
+
+// Delete deletes a calendar event
+func Delete(cfg *config.Config, account, id, filePath string) (string, error) {
+	account, id, err := ResolveDelete(account, id, filePath)
+	if err != nil {
+		return "", err
+	}
+	if _, err := cfg.GetAccount(account); err != nil {
+		return "", err
 	}
 
 	// Get access token
@@ -428,4 +388,42 @@ func Delete(cfg *config.Config, account, id, filePath string) (string, error) {
 
 		return filePath, nil
 	}
+}
+
+// ResolveDelete validates an Outlook event locator and resolves cached
+// frontmatter without acquiring a token or deleting remote/local state.
+func ResolveDelete(account, id, filePath string) (string, string, error) {
+	if filePath != "" {
+		data, err := os.ReadFile(filePath)
+		if err != nil {
+			return "", "", fmt.Errorf("failed to read file: %w", err)
+		}
+
+		content := string(data)
+		parts := strings.SplitN(content, "---", 3)
+		if len(parts) < 3 {
+			return "", "", fmt.Errorf("invalid frontmatter in file")
+		}
+
+		var fm map[string]interface{}
+		if err := yaml.Unmarshal([]byte(parts[1]), &fm); err != nil {
+			return "", "", fmt.Errorf("failed to parse frontmatter: %w", err)
+		}
+
+		var ok bool
+		account, ok = fm["account"].(string)
+		if !ok {
+			return "", "", fmt.Errorf("account not found in frontmatter")
+		}
+
+		id, ok = fm["id"].(string)
+		if !ok {
+			return "", "", fmt.Errorf("id not found in frontmatter")
+		}
+	}
+
+	if account == "" || id == "" {
+		return "", "", fmt.Errorf("account and id are required")
+	}
+	return account, id, nil
 }

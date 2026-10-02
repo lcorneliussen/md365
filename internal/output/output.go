@@ -150,6 +150,8 @@ func ExitCodeFor(err error) int {
 		return 6
 	case apierr.CodeGraph:
 		return 7
+	case apierr.CodePolicy:
+		return 8
 	default:
 		return 1
 	}

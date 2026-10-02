@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"errors"
 	"os"
 	"strings"
 
@@ -11,13 +12,17 @@ import (
 )
 
 var (
-	cfg         *config.Config
-	Interactive bool
-	writer      *output.Writer
-	jsonFlag    bool
-	quietFlag   bool
-	idsOnlyFlag bool
-	countFlag   bool
+	cfg          *config.Config
+	Interactive  bool
+	writer       *output.Writer
+	jsonFlag     bool
+	quietFlag    bool
+	idsOnlyFlag  bool
+	countFlag    bool
+	readOnlyFlag bool
+	noInputFlag  bool
+	dryRunFlag   bool
+	loadConfig   = config.Load
 )
 
 // rootCmd represents the base command when called without any subcommands
@@ -30,33 +35,40 @@ var rootCmd = &cobra.Command{
 
 Syncs calendars and contacts as plain Markdown files with YAML frontmatter.
 Mail, Teams, OneDrive, SharePoint, and write operations use Microsoft Graph API.`,
-	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-		writer = output.New(output.Options{
-			Format: outputFormat(),
-			Stdout: cmd.OutOrStdout(),
-			Stderr: cmd.ErrOrStderr(),
-		})
-		if err := validateOutputFlags(); err != nil {
-			return err
-		}
+	PersistentPreRunE: prepareCommand,
+}
 
-		// Skip config loading for commands that don't need it
-		if commandSkipsConfig(cmd) {
-			return nil
-		}
-
-		var err error
-		cfg, err = config.Load()
-		if err != nil {
-			return apierr.Usage(err.Error())
-		}
+func prepareCommand(cmd *cobra.Command, args []string) error {
+	writer = output.New(output.Options{
+		Format: outputFormat(),
+		Stdout: cmd.OutOrStdout(),
+		Stderr: cmd.ErrOrStderr(),
+	})
+	if err := validateOutputFlags(); err != nil {
+		return err
+	}
+	if err := enforcePreConfigPolicy(cmd); err != nil {
+		return err
+	}
+	// Skip config loading for commands that don't need it
+	if commandSkipsConfig(cmd) {
 		return nil
-	},
+	}
+
+	var err error
+	cfg, err = loadConfig()
+	if err != nil {
+		return apierr.Usage(err.Error())
+	}
+	return executeDryRun(cmd, args)
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.
 func Execute() int {
 	if err := rootCmd.Execute(); err != nil {
+		if errors.Is(err, errDryRunComplete) {
+			return 0
+		}
 		if writer == nil {
 			writer = output.New(output.Options{Format: outputFormat()})
 		}
@@ -126,6 +138,9 @@ func init() {
 	rootCmd.PersistentFlags().BoolVar(&quietFlag, "quiet", false, "Output result data only")
 	rootCmd.PersistentFlags().BoolVar(&idsOnlyFlag, "ids-only", false, "Output only result IDs, one per line")
 	rootCmd.PersistentFlags().BoolVar(&countFlag, "count", false, "Output only the result count")
+	rootCmd.PersistentFlags().BoolVar(&readOnlyFlag, "read-only", false, "Block commands that write Microsoft 365 or local state")
+	rootCmd.PersistentFlags().BoolVar(&noInputFlag, "no-input", false, "Fail instead of prompting, opening a browser, or waiting for authentication")
+	rootCmd.PersistentFlags().BoolVar(&dryRunFlag, "dry-run", false, "Validate and preview a supported mutation without executing it")
 
 	// Add subcommands
 	rootCmd.AddCommand(syncCmd)

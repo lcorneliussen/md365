@@ -10,11 +10,18 @@ const (
 )
 
 type Policy struct {
-	Mutability  Mutability   `json:"mutability"`
-	CanPrompt   bool         `json:"can_prompt"`
-	Effects     []string     `json:"effects,omitempty"`
-	OutputModes []string     `json:"output_modes"`
-	Constraints []Constraint `json:"constraints,omitempty"`
+	Mutability      Mutability   `json:"mutability"`
+	CanPrompt       bool         `json:"can_prompt"`
+	Prompting       Prompting    `json:"prompting,omitempty"`
+	DryRunSupported bool         `json:"dry_run_supported"`
+	Effects         []string     `json:"effects,omitempty"`
+	OutputModes     []string     `json:"output_modes"`
+	Constraints     []Constraint `json:"constraints,omitempty"`
+}
+
+type Prompting struct {
+	Mode         string   `json:"mode,omitempty"`
+	WhenAnyFlags []string `json:"when_any_flags,omitempty"`
 }
 
 type FlagRequirement struct {
@@ -45,27 +52,27 @@ var policies = map[string]Policy{
 	"completion zsh":        {Mutability: Read, OutputModes: []string{"human"}},
 	"skill":                 {Mutability: Read, OutputModes: []string{"human"}},
 	"skill install":         {Mutability: Write, Effects: []string{"local_write"}},
-	"auth add":              {Mutability: Write, CanPrompt: true, Effects: []string{"local_write", "authentication", "browser", "keyring_write"}, OutputModes: []string{"human"}},
+	"auth add":              {Mutability: Write, CanPrompt: true, Prompting: Prompting{Mode: "conditional", WhenAnyFlags: []string{"interactive", "login"}}, Effects: []string{"local_write", "authentication", "browser", "keyring_write"}, OutputModes: []string{"human"}},
 	"auth explain":          {Mutability: Read, Effects: []string{"keyring_read"}},
-	"auth login":            {Mutability: Write, CanPrompt: true, Effects: []string{"authentication", "browser", "keyring_write"}, OutputModes: []string{"human"}},
+	"auth login":            {Mutability: Write, CanPrompt: true, Prompting: Prompting{Mode: "always"}, Effects: []string{"authentication", "browser", "keyring_write"}, OutputModes: []string{"human"}},
 	"auth plan":             {Mutability: Read},
 	"auth refresh":          {Mutability: Write, Effects: []string{"authentication", "keyring_write"}},
 	"auth scopes":           {Mutability: Read, Effects: []string{"keyring_read"}},
 	"auth status":           {Mutability: Read, Effects: []string{"keyring_read"}},
 	"sync":                  {Mutability: Write, Effects: []string{"microsoft_graph_read", "local_write"}},
 	"cal list":              {Mutability: Read, Effects: []string{"local_read", "microsoft_graph_read"}},
-	"cal create":            {Mutability: Write, Effects: []string{"microsoft_graph_write", "local_write", "external_communication"}},
-	"cal delete":            {Mutability: Write, Effects: []string{"microsoft_graph_write", "local_read", "local_write", "external_communication"}},
+	"cal create":            {Mutability: Write, DryRunSupported: true, Effects: []string{"microsoft_graph_write", "local_write", "external_communication"}},
+	"cal delete":            {Mutability: Write, DryRunSupported: true, Effects: []string{"microsoft_graph_write", "local_read", "local_write", "external_communication"}},
 	"contacts search":       {Mutability: Read, Effects: []string{"local_read", "microsoft_graph_read"}},
 	"mail list":             {Mutability: Read, Effects: []string{"microsoft_graph_read"}},
 	"mail search":           {Mutability: Read, Effects: []string{"microsoft_graph_read", "microsoft_search"}},
 	"mail get":              {Mutability: Read, Effects: []string{"microsoft_graph_read"}},
 	"mail attachments":      {Mutability: Read, Effects: []string{"microsoft_graph_read"}},
-	"mail send":             {Mutability: Write, Effects: []string{"microsoft_graph_write", "external_communication"}},
-	"mail draft":            {Mutability: Write, Effects: []string{"microsoft_graph_write"}},
-	"mail mark-read":        {Mutability: Write, Effects: []string{"microsoft_graph_write"}},
-	"mail archive":          {Mutability: Write, Effects: []string{"microsoft_graph_write"}},
-	"mail delete":           {Mutability: Write, Effects: []string{"microsoft_graph_write"}},
+	"mail send":             {Mutability: Write, DryRunSupported: true, Effects: []string{"microsoft_graph_write", "external_communication"}},
+	"mail draft":            {Mutability: Write, DryRunSupported: true, Effects: []string{"microsoft_graph_write"}},
+	"mail mark-read":        {Mutability: Write, DryRunSupported: true, Effects: []string{"microsoft_graph_write"}},
+	"mail archive":          {Mutability: Write, DryRunSupported: true, Effects: []string{"microsoft_graph_write"}},
+	"mail delete":           {Mutability: Write, DryRunSupported: true, Effects: []string{"microsoft_graph_write"}},
 	"teams list":            {Mutability: Read, Effects: []string{"microsoft_graph_read"}},
 	"teams channels":        {Mutability: Read, Effects: []string{"microsoft_graph_read"}},
 	"teams files":           {Mutability: Read, Effects: []string{"microsoft_graph_read"}},
