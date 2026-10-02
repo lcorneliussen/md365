@@ -1,6 +1,6 @@
 # md365
 
-AI- and human-friendly CLI for Microsoft 365. Syncs calendars and contacts as local Markdown files.
+AI- and human-friendly CLI for Microsoft 365. Syncs calendars and contacts as local Markdown files and provides live access to mail, Teams, OneDrive, and SharePoint.
 
 ## The Problem
 
@@ -113,6 +113,17 @@ md365 mail list --account work --from-addr colleague@company.com --since 2026-05
 md365 mail get --account work --id <message-id>
 md365 mail attachments --account work --id <message-id>
 
+md365 teams list --account work
+md365 teams channels --account work --team-id <team-id>
+md365 teams files --account work --team-id <team-id> --channel-id <channel-id>
+
+md365 onedrive list --account work
+md365 onedrive list --account work --path "Projects/Current"
+md365 onedrive list --account work --item-id <folder-item-id>
+
+md365 sharepoint list --account work --team-id <team-id>
+md365 sharepoint list --account work --site-id <site-id> --path "Projects/Current"
+
 md365 mail send --account work \         # Send mail via API
   --to "colleague@company.com" \
   --subject "Hello" --body "Text"
@@ -195,8 +206,9 @@ md365 auth explain --account work
 ```
 
 Available feature bundles currently include `mail-read`, `mail-manage`,
-`mail-send`, `calendar-read`, `calendar`, and `sync`. Raw `--scope`/`--scopes`
-flags remain available as an expert escape hatch.
+`mail-send`, `calendar-read`, `calendar`, `teams-read`, `files-read`, and
+`sync`. Raw `--scope`/`--scopes` flags remain available as an expert escape
+hatch.
 
 md365 ships with a built-in app registration — no Azure setup needed. If your tenant requires a custom app, you can set `client_id` per account in the config.
 

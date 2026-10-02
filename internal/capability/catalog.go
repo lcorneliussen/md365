@@ -39,6 +39,11 @@ var commands = []Command{
 	{Name: "cal list", Description: "List calendar events", Scopes: []string{"Calendars.Read"}},
 	{Name: "cal create", Description: "Create calendar events", Scopes: []string{"Calendars.ReadWrite"}},
 	{Name: "cal delete", Description: "Delete calendar events", Scopes: []string{"Calendars.ReadWrite"}},
+	{Name: "teams list", Description: "List joined Microsoft Teams teams", Scopes: []string{"Team.ReadBasic.All"}},
+	{Name: "teams channels", Description: "List channels in a team", Scopes: []string{"Channel.ReadBasic.All"}},
+	{Name: "teams files", Description: "Browse a channel's SharePoint files", Scopes: []string{"Files.Read.All"}},
+	{Name: "onedrive list", Description: "Browse the signed-in user's OneDrive", Scopes: []string{"Files.Read"}},
+	{Name: "sharepoint list", Description: "Browse SharePoint document libraries", Scopes: []string{"Files.Read.All"}},
 	{Name: "sync", Description: "Sync calendars and contacts", Scopes: []string{"Calendars.Read", "Contacts.Read"}},
 }
 
@@ -48,15 +53,24 @@ var features = []Feature{
 	{Name: "mail-send", Description: "Send mail", Commands: []string{"mail send"}},
 	{Name: "calendar-read", Description: "Read calendar events", Commands: []string{"cal list"}},
 	{Name: "calendar", Description: "Read and manage calendar events", Commands: []string{"cal list", "cal create", "cal delete"}},
+	{Name: "teams-read", Description: "Browse teams, channels, and channel files", Commands: []string{"teams list", "teams channels", "teams files"}},
+	{Name: "files-read", Description: "Browse OneDrive and SharePoint files", Commands: []string{"onedrive list", "sharepoint list"}},
 	{Name: "sync", Description: "Sync calendars and contacts", Commands: []string{"sync"}},
 }
 
 var scopeImplications = map[string][]string{
-	"mail.readwrite":      {"mail.read"},
-	"calendars.readwrite": {"calendars.read"},
-	"contacts.readwrite":  {"contacts.read"},
-	"files.readwrite":     {"files.read"},
-	"files.readwrite.all": {"files.readwrite", "files.read.all", "files.read"},
+	"mail.readwrite":                {"mail.read"},
+	"calendars.readwrite":           {"calendars.read"},
+	"contacts.readwrite":            {"contacts.read"},
+	"files.readwrite":               {"files.read"},
+	"files.read.all":                {"files.read"},
+	"files.readwrite.all":           {"files.readwrite", "files.read.all", "files.read"},
+	"sites.read.all":                {"files.read.all", "files.read"},
+	"sites.readwrite.all":           {"sites.read.all", "files.readwrite.all", "files.readwrite", "files.read.all", "files.read"},
+	"teamsettings.read.all":         {"team.readbasic.all"},
+	"teamsettings.readwrite.all":    {"teamsettings.read.all", "team.readbasic.all"},
+	"channelsettings.read.all":      {"channel.readbasic.all"},
+	"channelsettings.readwrite.all": {"channelsettings.read.all", "channel.readbasic.all"},
 }
 
 func Commands() []Command { return append([]Command(nil), commands...) }

@@ -1,7 +1,7 @@
 # AGENTS.md — md365
 
 ## Project
-- **What:** AI- and human-friendly CLI for Microsoft 365 — calendars, contacts, and mail as Markdown
+- **What:** AI- and human-friendly CLI for Microsoft 365 — calendars, contacts, mail, Teams, OneDrive, and SharePoint
 - **Language:** Go
 - **Repo:** github.com/lcorneliussen/md365
 - **Binary:** `md365`
@@ -64,9 +64,11 @@ internal/
   cal/         # Calendar list, create, delete
   config/      # Config loading, cross-tenant checks
   contacts/    # Contact sync
-  graph/       # Microsoft Graph API client, types
+  graph/       # Microsoft Graph API client and types
   mail/        # Mail list, get, send
+  storage/     # OneDrive and SharePoint browsing
   sync/        # Sync engine, markdown file writer
+  teams/       # Teams and channel browsing
 ```
 
 ## Key Decisions
