@@ -34,3 +34,14 @@ func TestMailSearchRejectsInvalidArgumentCountsAsUsageError(t *testing.T) {
 		}
 	}
 }
+
+func TestMailListRejectsNonPositiveLimitBeforeGraphCall(t *testing.T) {
+	previousAccount, previousLimit := mailAccount, mailLimit
+	mailAccount, mailLimit = "work", -1
+	t.Cleanup(func() { mailAccount, mailLimit = previousAccount, previousLimit })
+
+	err := mailListCmd.RunE(mailListCmd, nil)
+	if apierr.As(err).Code != apierr.CodeUsage {
+		t.Fatalf("error code = %q, want usage (error: %v)", apierr.As(err).Code, err)
+	}
+}

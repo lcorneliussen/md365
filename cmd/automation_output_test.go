@@ -22,11 +22,11 @@ func TestSelectedFieldsTrimAndDeduplicate(t *testing.T) {
 func TestAutomationOutputFlagValidation(t *testing.T) {
 	previousJSON, previousQuiet := jsonFlag, quietFlag
 	previousResultsOnly, previousIDsOnly := resultsOnlyFlag, idsOnlyFlag
-	previousCount, previousSelect := countFlag, selectFlag
+	previousCount, previousSelect, previousFailEmpty := countFlag, selectFlag, failEmptyFlag
 	t.Cleanup(func() {
 		jsonFlag, quietFlag = previousJSON, previousQuiet
 		resultsOnlyFlag, idsOnlyFlag = previousResultsOnly, previousIDsOnly
-		countFlag, selectFlag = previousCount, previousSelect
+		countFlag, selectFlag, failEmptyFlag = previousCount, previousSelect, previousFailEmpty
 	})
 
 	jsonFlag, quietFlag, resultsOnlyFlag, idsOnlyFlag, countFlag = false, false, true, false, false
@@ -53,6 +53,16 @@ func TestAutomationOutputFlagValidation(t *testing.T) {
 	quietFlag, resultsOnlyFlag, selectFlag = true, true, ""
 	if err := validateOutputFlags(); apierr.As(err).Code != apierr.CodeUsage {
 		t.Fatalf("quiet with results-only = %v", err)
+	}
+
+	quietFlag, resultsOnlyFlag, selectFlag = false, false, "id"
+	if err := validateOutputFlags(); apierr.As(err).Code != apierr.CodeUsage {
+		t.Fatalf("select without structured output = %v", err)
+	}
+
+	selectFlag, failEmptyFlag = "", true
+	if err := validateOutputFlags(); apierr.As(err).Code != apierr.CodeUsage {
+		t.Fatalf("fail-empty without structured output = %v", err)
 	}
 }
 

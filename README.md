@@ -168,7 +168,7 @@ Most commands support structured output:
 md365 cal list --account work --json
 md365 contacts search doe --ids-only
 md365 mail list --account work --count
-md365 mail search "quarterly close" --account work --results-only --select id,subject,from.address
+md365 mail search "quarterly close" --account work --results-only --select id,subject,from
 md365 files search "annual report" --account work --json --fail-empty
 ```
 

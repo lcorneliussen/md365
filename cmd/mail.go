@@ -86,6 +86,9 @@ var mailListCmd = &cobra.Command{
 		if mailAccount == "" {
 			return usageError("--account is required")
 		}
+		if mailLimit <= 0 {
+			return usageError("--limit must be greater than zero")
+		}
 
 		messages, err := mail.List(cfg, mailAccount, mail.ListOptions{
 			Search:   mailSearch,

@@ -174,6 +174,9 @@ func validateOutputFlags() error {
 	if selectFlag != "" && len(selectedFields()) == 0 {
 		return apierr.Usage("--select requires at least one field")
 	}
+	if (strings.TrimSpace(selectFlag) != "" || failEmptyFlag) && !(jsonFlag || quietFlag || resultsOnlyFlag) {
+		return apierr.Usage("--select and --fail-empty require --json, --results-only, or --quiet")
+	}
 	return nil
 }
 

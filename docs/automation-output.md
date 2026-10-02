@@ -17,8 +17,9 @@ Choose one output mode. `--select` and `--fail-empty` can be composed with
 
 ## Projection and empty results
 
-`--select id,subject,from.address` projects returned objects or each object in
-a collection. Dotted paths preserve their object shape. A requested field
+`--select id,subject,from` projects returned objects or each object in a
+collection. Dotted paths preserve their object shape when a response contains
+nested objects. A requested field
 that is not present fails with `usage`; md365 never invents a value.
 
 `--fail-empty` turns an empty collection, map, string, or null result into the
