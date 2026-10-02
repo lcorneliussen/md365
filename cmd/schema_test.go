@@ -64,6 +64,15 @@ func TestSchemaPublishesArgumentsPermissionsAndPolicy(t *testing.T) {
 	if search.Mutability != commandmeta.Read || search.CanPrompt {
 		t.Fatalf("mail search policy = %#v", search)
 	}
+	safetyFlags := map[string]bool{}
+	for _, flag := range search.Flags {
+		if flag.Name == "wrap-untrusted" || flag.Name == "sanitize-content" {
+			safetyFlags[flag.Name] = flag.Inherited
+		}
+	}
+	if !safetyFlags["wrap-untrusted"] || !safetyFlags["sanitize-content"] {
+		t.Fatalf("mail search content safety flags = %#v", safetyFlags)
+	}
 
 	archive := byPath["md365 mail archive"]
 	if !reflect.DeepEqual(archive.Arguments, []schemaArgument{{Name: "MESSAGE_ID", Required: false, Variadic: true}}) {

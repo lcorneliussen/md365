@@ -95,6 +95,7 @@ md365 skill install                     # Install the md365 agent skill
 md365 mail list --account work --read-only
 md365 auth status --no-input --json
 md365 mail send --account work --to jane@example.com --subject "Hello" --body "..." --dry-run --json
+md365 mail search "quarterly close" --account work --wrap-untrusted --sanitize-content --json
 
 md365 sync                              # Sync all accounts
 md365 sync --account work               # Sync one account
@@ -187,6 +188,12 @@ command execution:
 `--read-only --dry-run` is valid because the preview does not mutate state.
 Unsupported dry runs fail closed with the stable `policy_denied` error code and
 exit status 8.
+
+Remote Exchange Online, Microsoft Teams, OneDrive, SharePoint, attachment, and
+Microsoft Search text is preserved by default. For agent consumption, use
+`--wrap-untrusted` to attach structured Microsoft 365 provenance and
+`--sanitize-content` to make unsafe control/invisible Unicode characters
+explicit. See [`docs/content-safety.md`](docs/content-safety.md).
 
 JSON success responses use a stable envelope with `ok`, `data`, optional
 `summary`, `meta`, and `breadcrumbs`. Errors use `ok: false`, `error`, `code`,

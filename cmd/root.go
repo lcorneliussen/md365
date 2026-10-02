@@ -12,17 +12,19 @@ import (
 )
 
 var (
-	cfg          *config.Config
-	Interactive  bool
-	writer       *output.Writer
-	jsonFlag     bool
-	quietFlag    bool
-	idsOnlyFlag  bool
-	countFlag    bool
-	readOnlyFlag bool
-	noInputFlag  bool
-	dryRunFlag   bool
-	loadConfig   = config.Load
+	cfg                 *config.Config
+	Interactive         bool
+	writer              *output.Writer
+	jsonFlag            bool
+	quietFlag           bool
+	idsOnlyFlag         bool
+	countFlag           bool
+	readOnlyFlag        bool
+	noInputFlag         bool
+	dryRunFlag          bool
+	wrapUntrustedFlag   bool
+	sanitizeContentFlag bool
+	loadConfig          = config.Load
 )
 
 // rootCmd represents the base command when called without any subcommands
@@ -40,9 +42,11 @@ Mail, Teams, OneDrive, SharePoint, and write operations use Microsoft Graph API.
 
 func prepareCommand(cmd *cobra.Command, args []string) error {
 	writer = output.New(output.Options{
-		Format: outputFormat(),
-		Stdout: cmd.OutOrStdout(),
-		Stderr: cmd.ErrOrStderr(),
+		Format:          outputFormat(),
+		Stdout:          cmd.OutOrStdout(),
+		Stderr:          cmd.ErrOrStderr(),
+		WrapUntrusted:   wrapUntrustedFlag,
+		SanitizeContent: sanitizeContentFlag,
 	})
 	if err := validateOutputFlags(); err != nil {
 		return err
@@ -141,6 +145,8 @@ func init() {
 	rootCmd.PersistentFlags().BoolVar(&readOnlyFlag, "read-only", false, "Block commands that write Microsoft 365 or local state")
 	rootCmd.PersistentFlags().BoolVar(&noInputFlag, "no-input", false, "Fail instead of prompting, opening a browser, or waiting for authentication")
 	rootCmd.PersistentFlags().BoolVar(&dryRunFlag, "dry-run", false, "Validate and preview a supported mutation without executing it")
+	rootCmd.PersistentFlags().BoolVar(&wrapUntrustedFlag, "wrap-untrusted", false, "Wrap remote Microsoft 365 content with structured provenance")
+	rootCmd.PersistentFlags().BoolVar(&sanitizeContentFlag, "sanitize-content", false, "Make unsafe control and invisible characters explicit in remote content")
 
 	// Add subcommands
 	rootCmd.AddCommand(syncCmd)

@@ -12,22 +12,22 @@ type ItemInfo struct {
 	ID         string `json:"id"`
 	DriveID    string `json:"drive_id,omitempty"`
 	Account    string `json:"account"`
-	Name       string `json:"name"`
+	Name       string `json:"name" untrusted:"onedrive_sharepoint,drive_item"`
 	Type       string `json:"type"`
 	MimeType   string `json:"mime_type,omitempty"`
 	Size       int64  `json:"size,omitempty"`
 	ChildCount int    `json:"child_count,omitempty"`
 	Modified   string `json:"modified,omitempty"`
 	WebURL     string `json:"web_url,omitempty"`
-	ParentPath string `json:"parent_path,omitempty"`
+	ParentPath string `json:"parent_path,omitempty" untrusted:"onedrive_sharepoint,drive_item"`
 	SiteID     string `json:"site_id,omitempty"`
 }
 
 type LibraryInfo struct {
 	ID          string `json:"id"`
 	Account     string `json:"account"`
-	Name        string `json:"name"`
-	Description string `json:"description,omitempty"`
+	Name        string `json:"name" untrusted:"sharepoint,document_library"`
+	Description string `json:"description,omitempty" untrusted:"sharepoint,document_library"`
 	DriveType   string `json:"drive_type,omitempty"`
 	WebURL      string `json:"web_url,omitempty"`
 }
@@ -35,7 +35,7 @@ type LibraryInfo struct {
 type SearchResultInfo struct {
 	ItemInfo
 	Rank    int    `json:"rank"`
-	Summary string `json:"match_summary,omitempty"`
+	Summary string `json:"match_summary,omitempty" untrusted:"microsoft_search,drive_item_hit"`
 }
 
 func ListOneDrive(cfg *config.Config, account, itemID, path string, limit int) ([]ItemInfo, error) {
