@@ -63,6 +63,7 @@ var aboutCmd = &cobra.Command{
 		fmt.Fprintln(out)
 		fmt.Fprintln(out, "Useful commands:")
 		fmt.Fprintln(out, "  md365 auth add -i")
+		fmt.Fprintln(out, "  md365 schema --json")
 		fmt.Fprintln(out, "  md365 auth login --account <name>")
 		fmt.Fprintln(out, "  md365 sync --account <name>")
 		fmt.Fprintln(out, "  md365 cal list --account <name> --from 2026-01-01 --to 2026-12-31")
@@ -113,6 +114,7 @@ func newAboutInfo() aboutInfo {
 		Accounts: "Commands use account names from config, not email addresses.",
 		Examples: []string{
 			"md365 auth add -i",
+			"md365 schema --json",
 			"md365 auth login --account <name>",
 			"md365 sync --account <name>",
 			"md365 cal list --account <name> --from 2026-01-01 --to 2026-12-31",

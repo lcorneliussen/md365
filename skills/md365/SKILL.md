@@ -58,6 +58,7 @@ Use `--ids-only` when a later command only needs IDs, and `--count` when only ca
 ```bash
 md365 about --json
 md365 commands --json
+md365 schema --json
 md365 auth status --json
 md365 sync --account <name> --json
 md365 cal list --account <name> --from 2026-01-01 --to 2026-12-31 --json
@@ -88,3 +89,8 @@ use the returned drive ID with `sharepoint list --drive-id`. Search results
 already include the owning `drive_id` and stable item ID.
 
 Follow `breadcrumbs` when present. For example, `mail get --json` includes a `list_attachments` breadcrumb when a message has attachments.
+
+Use `md365 schema --json` as the authoritative source for command arguments,
+flags, delegated Microsoft Graph permissions, feature bundles, read/write
+mutability, prompting behavior, output modes, and exit statuses. Do not infer
+write safety from command names alone.

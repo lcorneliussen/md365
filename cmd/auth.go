@@ -80,7 +80,7 @@ var authPlanCmd = &cobra.Command{
 		if writer.IsHuman() {
 			fmt.Fprintln(cmd.OutOrStdout(), "Commands:")
 			for _, command := range plan.Commands {
-				fmt.Fprintf(cmd.OutOrStdout(), "  - %s: %s\n", command.Name, strings.Join(command.Scopes, " "))
+				fmt.Fprintf(cmd.OutOrStdout(), "  - %s: %s\n", command.Name, formatCommandPermissions(command))
 			}
 			fmt.Fprintln(cmd.OutOrStdout(), "\nRequired scopes:")
 			for _, scope := range plan.Scopes {
@@ -90,6 +90,17 @@ var authPlanCmd = &cobra.Command{
 		}
 		return writeOK(plan, output.WithSummary(fmt.Sprintf("%d commands require %d scopes", len(plan.Commands), len(plan.Scopes))))
 	},
+}
+
+func formatCommandPermissions(command capability.Command) string {
+	parts := append([]string(nil), command.Scopes...)
+	for _, conditional := range command.ConditionalScopes {
+		parts = append(parts, fmt.Sprintf("--%s: %s", conditional.WhenFlag, strings.Join(conditional.Scopes, " ")))
+	}
+	if len(parts) == 0 {
+		return "none"
+	}
+	return strings.Join(parts, "; ")
 }
 
 type authExplainResult struct {
