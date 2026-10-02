@@ -23,6 +23,7 @@ var (
 	idsOnlyFlag         bool
 	countFlag           bool
 	selectFlag          string
+	selectProvidedFlag  bool
 	failEmptyFlag       bool
 	readOnlyFlag        bool
 	noInputFlag         bool
@@ -31,6 +32,26 @@ var (
 	sanitizeContentFlag bool
 	loadConfig          = config.Load
 )
+
+type trackedStringValue struct {
+	value    *string
+	provided *bool
+}
+
+func (v *trackedStringValue) Set(value string) error {
+	*v.value = value
+	*v.provided = true
+	return nil
+}
+
+func (v *trackedStringValue) String() string {
+	if v == nil || v.value == nil {
+		return ""
+	}
+	return *v.value
+}
+
+func (*trackedStringValue) Type() string { return "string" }
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
@@ -49,6 +70,9 @@ func prepareCommand(cmd *cobra.Command, args []string) error {
 	writer = newOutputWriter(cmd.OutOrStdout(), cmd.ErrOrStderr())
 	if err := validateOutputFlags(); err != nil {
 		return err
+	}
+	if _, policy, ok := commandPolicy(cmd); ok && !supportsOutputMode(policy, selectedOutputMode()) {
+		return apierr.Usage(cmd.CommandPath() + " does not support --" + strings.ReplaceAll(selectedOutputMode(), "_", "-"))
 	}
 	if strings.TrimSpace(selectFlag) != "" && !dryRunFlag {
 		if _, policy, ok := commandPolicy(cmd); ok && policy.Mutability == commandmeta.Write {
@@ -107,6 +131,7 @@ func prescanAutomationFlags(args []string) {
 		case "--fail-empty":
 			failEmptyFlag = true
 		case "--select":
+			selectProvidedFlag = true
 			if i+1 < len(args) {
 				i++
 				selectFlag = args[i]
@@ -121,6 +146,7 @@ func prescanAutomationFlags(args []string) {
 			sanitizeContentFlag = false
 		default:
 			if value, ok := strings.CutPrefix(arg, "--select="); ok {
+				selectProvidedFlag = true
 				selectFlag = value
 			}
 		}
@@ -156,6 +182,36 @@ func outputFormat() output.Format {
 	}
 }
 
+func selectedOutputMode() string {
+	switch {
+	case jsonFlag:
+		return "json"
+	case resultsOnlyFlag:
+		return "results_only"
+	case quietFlag:
+		return "quiet"
+	case idsOnlyFlag:
+		return "ids"
+	case countFlag:
+		return "count"
+	default:
+		return "human"
+	}
+}
+
+func supportsOutputMode(policy commandmeta.Policy, mode string) bool {
+	for _, supported := range policy.OutputModes {
+		if supported == mode {
+			return true
+		}
+	}
+	return false
+}
+
+func selectRequested() bool {
+	return selectProvidedFlag || selectFlag != ""
+}
+
 func validateOutputFlags() error {
 	selected := []string{}
 	if jsonFlag {
@@ -179,7 +235,7 @@ func validateOutputFlags() error {
 	if strings.TrimSpace(selectFlag) != "" && (idsOnlyFlag || countFlag) {
 		return apierr.Usage("--select cannot be combined with --ids-only or --count")
 	}
-	if selectFlag != "" && len(selectedFields()) == 0 {
+	if selectRequested() && len(selectedFields()) == 0 {
 		return apierr.Usage("--select requires at least one field")
 	}
 	if (strings.TrimSpace(selectFlag) != "" || failEmptyFlag) && !(jsonFlag || quietFlag || resultsOnlyFlag) {
@@ -227,7 +283,7 @@ func init() {
 	rootCmd.PersistentFlags().BoolVar(&resultsOnlyFlag, "results-only", false, "Output result data without the response envelope")
 	rootCmd.PersistentFlags().BoolVar(&idsOnlyFlag, "ids-only", false, "Output only result IDs, one per line")
 	rootCmd.PersistentFlags().BoolVar(&countFlag, "count", false, "Output only the result count")
-	rootCmd.PersistentFlags().StringVar(&selectFlag, "select", "", "Project comma-separated response fields")
+	rootCmd.PersistentFlags().Var(&trackedStringValue{value: &selectFlag, provided: &selectProvidedFlag}, "select", "Project comma-separated response fields")
 	rootCmd.PersistentFlags().BoolVar(&failEmptyFlag, "fail-empty", false, "Return empty_result when a command returns no results")
 	rootCmd.PersistentFlags().BoolVar(&readOnlyFlag, "read-only", false, "Block commands that write Microsoft 365 or local state")
 	rootCmd.PersistentFlags().BoolVar(&noInputFlag, "no-input", false, "Fail instead of prompting, opening a browser, or waiting for authentication")

@@ -22,11 +22,11 @@ func TestSelectedFieldsTrimAndDeduplicate(t *testing.T) {
 func TestAutomationOutputFlagValidation(t *testing.T) {
 	previousJSON, previousQuiet := jsonFlag, quietFlag
 	previousResultsOnly, previousIDsOnly := resultsOnlyFlag, idsOnlyFlag
-	previousCount, previousSelect, previousFailEmpty := countFlag, selectFlag, failEmptyFlag
+	previousCount, previousSelect, previousSelectProvided, previousFailEmpty := countFlag, selectFlag, selectProvidedFlag, failEmptyFlag
 	t.Cleanup(func() {
 		jsonFlag, quietFlag = previousJSON, previousQuiet
 		resultsOnlyFlag, idsOnlyFlag = previousResultsOnly, previousIDsOnly
-		countFlag, selectFlag, failEmptyFlag = previousCount, previousSelect, previousFailEmpty
+		countFlag, selectFlag, selectProvidedFlag, failEmptyFlag = previousCount, previousSelect, previousSelectProvided, previousFailEmpty
 	})
 
 	jsonFlag, quietFlag, resultsOnlyFlag, idsOnlyFlag, countFlag = false, false, true, false, false
@@ -64,17 +64,24 @@ func TestAutomationOutputFlagValidation(t *testing.T) {
 	if err := validateOutputFlags(); apierr.As(err).Code != apierr.CodeUsage {
 		t.Fatalf("fail-empty without structured output = %v", err)
 	}
+
+	jsonFlag, failEmptyFlag, selectProvidedFlag = true, false, true
+	if err := validateOutputFlags(); apierr.As(err).Code != apierr.CodeUsage {
+		t.Fatalf("explicit empty select = %v", err)
+	}
 }
 
 func TestPrescanAutomationOutputFlagsStopsAtCommand(t *testing.T) {
 	previousResultsOnly, previousSelect, previousFailEmpty := resultsOnlyFlag, selectFlag, failEmptyFlag
-	resultsOnlyFlag, selectFlag, failEmptyFlag = false, "", false
+	previousSelectProvided := selectProvidedFlag
+	resultsOnlyFlag, selectFlag, failEmptyFlag, selectProvidedFlag = false, "", false, false
 	t.Cleanup(func() {
 		resultsOnlyFlag, selectFlag, failEmptyFlag = previousResultsOnly, previousSelect, previousFailEmpty
+		selectProvidedFlag = previousSelectProvided
 	})
 
 	prescanAutomationFlags([]string{"--results-only", "--select=id,subject", "--fail-empty", "mail", "--select=ignored"})
-	if !resultsOnlyFlag || selectFlag != "id,subject" || !failEmptyFlag {
+	if !resultsOnlyFlag || selectFlag != "id,subject" || !selectProvidedFlag || !failEmptyFlag {
 		t.Fatalf("prescanned flags = results-only:%v select:%q fail-empty:%v", resultsOnlyFlag, selectFlag, failEmptyFlag)
 	}
 }
@@ -110,5 +117,20 @@ func TestProjectionIsRejectedBeforeMicrosoft365Mutation(t *testing.T) {
 	err := prepareCommand(mailSendCmd, nil)
 	if apierr.As(err).Code != apierr.CodeUsage {
 		t.Fatalf("projection on mail send = %v", err)
+	}
+}
+
+func TestUnsupportedCommandOutputModeIsRejectedInPreflight(t *testing.T) {
+	previousResultsOnly, previousSelectProvided := resultsOnlyFlag, selectProvidedFlag
+	previousWriter := writer
+	resultsOnlyFlag, selectProvidedFlag = true, false
+	t.Cleanup(func() {
+		resultsOnlyFlag, selectProvidedFlag = previousResultsOnly, previousSelectProvided
+		writer = previousWriter
+	})
+
+	err := prepareCommand(skillCmd, nil)
+	if apierr.As(err).Code != apierr.CodeUsage {
+		t.Fatalf("results-only on human-only skill command = %v", err)
 	}
 }
