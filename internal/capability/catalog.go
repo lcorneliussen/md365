@@ -40,6 +40,7 @@ var commands = []Command{
 	{Name: "cal list", Description: "List calendar events", Scopes: []string{"Calendars.Read"}},
 	{Name: "cal create", Description: "Create calendar events", Scopes: []string{"Calendars.ReadWrite"}},
 	{Name: "cal delete", Description: "Delete calendar events", Scopes: []string{"Calendars.ReadWrite"}},
+	{Name: "contacts search", Description: "Search contacts", Scopes: []string{"Contacts.Read"}},
 	{Name: "teams list", Description: "List joined Microsoft Teams teams", Scopes: []string{"Team.ReadBasic.All"}},
 	{Name: "teams channels", Description: "List channels in a team", Scopes: []string{"Channel.ReadBasic.All"}},
 	{Name: "teams files", Description: "Browse a channel's SharePoint files", Scopes: []string{"Files.Read.All"}},
@@ -78,6 +79,22 @@ var scopeImplications = map[string][]string{
 
 func Commands() []Command { return append([]Command(nil), commands...) }
 func Features() []Feature { return append([]Feature(nil), features...) }
+
+func CommandByName(name string) (Command, bool) { return findCommand(name) }
+
+func FeaturesForCommand(name string) []string {
+	var result []string
+	for _, feature := range features {
+		for _, command := range feature.Commands {
+			if command == name {
+				result = append(result, feature.Name)
+				break
+			}
+		}
+	}
+	sort.Strings(result)
+	return result
+}
 
 // Resolve expands command selectors and feature names into minimal scopes.
 // Selectors accept exact command names and group wildcards such as "mail *".

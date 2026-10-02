@@ -40,9 +40,9 @@ var commandsCmd = &cobra.Command{
 		return writeOK(catalog,
 			output.WithSummary(fmt.Sprintf("%d commands", len(catalog))),
 			output.WithBreadcrumbs(output.Breadcrumb{
-				Action:      "about",
-				Command:     "md365 about --json",
-				Description: "Read md365's source model and conventions",
+				Action:      "schema",
+				Command:     "md365 schema --json",
+				Description: "Read the versioned command, permission, and safety contract",
 			}),
 		)
 	},

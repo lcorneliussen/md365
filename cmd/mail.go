@@ -209,7 +209,7 @@ var mailDraftCmd = &cobra.Command{
 
 // mailMarkReadCmd marks messages as read
 var mailMarkReadCmd = &cobra.Command{
-	Use:   "mark-read",
+	Use:   "mark-read [MESSAGE_ID...]",
 	Short: "Mark emails as read",
 	Long:  `Mark one or more emails as read. Pass IDs via --id flags or pipe from 'mail list --ids-only'.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
@@ -239,7 +239,7 @@ var mailMarkReadCmd = &cobra.Command{
 
 // mailArchiveCmd archives messages (mark read + move to archive folder)
 var mailArchiveCmd = &cobra.Command{
-	Use:   "archive",
+	Use:   "archive [MESSAGE_ID...]",
 	Short: "Archive emails",
 	Long:  `Archive emails: marks as read and moves to the Archive folder. Pass IDs via --id flags or pipe from 'mail list --ids-only'.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
@@ -269,7 +269,7 @@ var mailArchiveCmd = &cobra.Command{
 
 // mailDeleteCmd deletes messages
 var mailDeleteCmd = &cobra.Command{
-	Use:   "delete",
+	Use:   "delete [MESSAGE_ID...]",
 	Short: "Delete emails",
 	Long:  `Delete emails (moves to Deleted Items). Pass IDs via --id flags or pipe from 'mail list --ids-only'.`,
 	RunE: func(cmd *cobra.Command, args []string) error {

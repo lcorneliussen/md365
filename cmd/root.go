@@ -110,7 +110,7 @@ func commandSkipsConfig(cmd *cobra.Command) bool {
 		return parts[0] == "md365"
 	}
 	switch parts[1] {
-	case "about", "commands", "help", "skill":
+	case "about", "commands", "schema", "help", "skill":
 		return true
 	case "auth":
 		return len(parts) > 2 && parts[2] == "add"
@@ -139,6 +139,7 @@ func init() {
 	rootCmd.AddCommand(authCmd)
 	rootCmd.AddCommand(aboutCmd)
 	rootCmd.AddCommand(commandsCmd)
+	rootCmd.AddCommand(schemaCmd)
 	rootCmd.AddCommand(skillCmd)
 }
 

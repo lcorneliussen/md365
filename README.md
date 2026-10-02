@@ -89,6 +89,7 @@ job_title: Engineer
 ```bash
 md365 about                             # Explain the read model, cache, and account conventions
 md365 commands --json                   # Inspect command/flag surface
+md365 schema --json                     # Versioned command, permission, and safety contract
 md365 skill install                     # Install the md365 agent skill
 
 md365 sync                              # Sync all accounts
@@ -163,6 +164,12 @@ md365 cal list --account work --json
 md365 contacts search doe --ids-only
 md365 mail list --account work --count
 ```
+
+`md365 schema --json` is the authoritative automation contract. It describes
+aliases, positional arguments, flags/defaults, delegated Microsoft Graph
+permissions, feature bundles, read/write mutability, prompting behavior,
+output modes, and exit statuses. The compatibility policy is documented in
+[`docs/command-schema.md`](docs/command-schema.md).
 
 JSON success responses use a stable envelope with `ok`, `data`, optional
 `summary`, `meta`, and `breadcrumbs`. Errors use `ok: false`, `error`, `code`,
