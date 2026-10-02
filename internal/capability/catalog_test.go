@@ -21,8 +21,8 @@ func TestResolveFeature(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(plan.Commands) != 7 {
-		t.Fatalf("commands = %d, want 7", len(plan.Commands))
+	if len(plan.Commands) != 8 {
+		t.Fatalf("commands = %d, want 8", len(plan.Commands))
 	}
 	if !reflect.DeepEqual(plan.Scopes, []string{"Mail.ReadWrite", "User.Read", "offline_access"}) {
 		t.Fatalf("unexpected scopes: %#v", plan.Scopes)

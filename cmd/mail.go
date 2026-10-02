@@ -11,20 +11,22 @@ import (
 )
 
 var (
-	mailAccount  string
-	mailTo       string
-	mailSubject  string
-	mailBody     string
-	mailForce    bool
-	mailSearch   string
-	mailFromAddr string
-	mailSince    string
-	mailUntil    string
-	mailFolder   string
-	mailLimit    int
-	mailUnread   bool
-	mailID       string
-	mailIDs      []string
+	mailAccount     string
+	mailTo          string
+	mailSubject     string
+	mailBody        string
+	mailForce       bool
+	mailSearch      string
+	mailFromAddr    string
+	mailSince       string
+	mailUntil       string
+	mailFolder      string
+	mailLimit       int
+	mailSearchLimit int
+	mailTopResults  bool
+	mailUnread      bool
+	mailID          string
+	mailIDs         []string
 )
 
 // mailCmd represents the mail command
@@ -32,6 +34,37 @@ var mailCmd = &cobra.Command{
 	Use:   "mail",
 	Short: "Mail commands",
 	Long:  `Read and send emails via Microsoft Graph API.`,
+}
+
+var mailSearchCmd = &cobra.Command{
+	Use:   "search QUERY",
+	Short: "Search the signed-in user's Exchange Online mailbox",
+	Long: `Search the signed-in user's own Exchange Online mailbox through the
+Microsoft Search API. Results are newest-first by default. Use --top-results
+to promote the most relevant matches. For folder-aware, shared/delegated, or
+Microsoft personal mailbox search, use mail list --search instead.`,
+	Args: cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		if mailAccount == "" {
+			return usageError("--account is required")
+		}
+		if mailSearchLimit <= 0 {
+			return usageError("--limit must be greater than zero")
+		}
+		results, err := mail.Search(cfg, mailAccount, args[0], mailSearchLimit, mailTopResults)
+		if err != nil {
+			return err
+		}
+		if writer.IsHuman() {
+			printMessageSearchResults(cmd, results)
+			return nil
+		}
+		return writeOK(results,
+			output.WithSummary(fmt.Sprintf("%d message search results", len(results))),
+			output.WithMeta("source", "microsoft_search"),
+			output.WithMeta("sort", messageSearchSort(mailTopResults)),
+		)
+	},
 }
 
 // mailListCmd lists mailbox messages
@@ -271,6 +304,10 @@ func collectIDs(flagIDs []string, args []string) []string {
 }
 
 func init() {
+	mailSearchCmd.Flags().StringVar(&mailAccount, "account", "", "Account (required)")
+	mailSearchCmd.Flags().IntVar(&mailSearchLimit, "limit", 25, "Maximum messages")
+	mailSearchCmd.Flags().BoolVar(&mailTopResults, "top-results", false, "Promote the most relevant Outlook matches")
+
 	mailListCmd.Flags().StringVar(&mailAccount, "account", "", "Account (required)")
 	mailListCmd.Flags().StringVar(&mailSearch, "search", "", "KQL/text search (e.g. bauer or from:bauer)")
 	mailListCmd.Flags().StringVar(&mailFromAddr, "from-addr", "", "Sender email address")
@@ -308,6 +345,7 @@ func init() {
 	mailDeleteCmd.Flags().StringArrayVar(&mailIDs, "id", nil, "Message ID(s) to delete")
 
 	mailCmd.AddCommand(mailListCmd)
+	mailCmd.AddCommand(mailSearchCmd)
 	mailCmd.AddCommand(mailGetCmd)
 	mailCmd.AddCommand(mailAttachmentsCmd)
 	mailCmd.AddCommand(mailSendCmd)
@@ -315,6 +353,28 @@ func init() {
 	mailCmd.AddCommand(mailMarkReadCmd)
 	mailCmd.AddCommand(mailArchiveCmd)
 	mailCmd.AddCommand(mailDeleteCmd)
+}
+
+func messageSearchSort(topResults bool) string {
+	if topResults {
+		return "top_results_then_received_desc"
+	}
+	return "received_desc"
+}
+
+func printMessageSearchResults(cmd *cobra.Command, results []mail.SearchResultInfo) {
+	loc := configuredLocation()
+	for _, result := range results {
+		fmt.Fprintf(cmd.OutOrStdout(), "#%d  %s  %s  %s\n", result.Rank,
+			formatReceivedHuman(result.ReceivedDateTime, loc), padHuman(result.From, 36), result.Subject)
+		fmt.Fprintf(cmd.OutOrStdout(), "  %s\n", result.ID)
+		if result.Summary != "" {
+			fmt.Fprintf(cmd.OutOrStdout(), "  %s\n", result.Summary)
+		}
+	}
+	if len(results) == 0 {
+		fmt.Fprintln(cmd.OutOrStdout(), "No messages found")
+	}
 }
 
 func printMessages(cmd *cobra.Command, messages []mail.MessageInfo) {

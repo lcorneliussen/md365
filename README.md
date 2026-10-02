@@ -109,6 +109,8 @@ md365 contacts search doe               # Search local contacts
 
 md365 mail list --account work           # Recent mailbox messages
 md365 mail list --account work --search bauer
+md365 mail search "quarterly forecast" --account work
+md365 mail search "project atlas" --account work --top-results
 md365 mail list --account work --from-addr colleague@company.com --since 2026-05-01
 md365 mail get --account work --id <message-id>
 md365 mail attachments --account work --id <message-id>
@@ -145,6 +147,12 @@ library. Use `sharepoint libraries` to discover additional libraries such as
 `Datenraum`, then pass the returned ID to `sharepoint list --drive-id`.
 `files search` searches all visible OneDrive and SharePoint content and returns
 stable item, drive, and site IDs for follow-up commands.
+
+`mail search` uses the Microsoft Search API across the signed-in user's own
+Exchange Online mailbox, including supported attachment content. Results are
+newest-first unless `--top-results` promotes Outlook's most relevant matches.
+Use `mail list --search` instead for folder-aware chronological queries,
+shared/delegated mailboxes, or Microsoft personal accounts.
 
 ### Agent-Friendly Output
 

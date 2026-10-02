@@ -49,6 +49,46 @@ type AttachmentInfo struct {
 	IsInline    bool   `json:"is_inline,omitempty"`
 }
 
+type SearchResultInfo struct {
+	MessageInfo
+	Rank    int    `json:"rank"`
+	Summary string `json:"match_summary,omitempty"`
+}
+
+// Search discovers messages in the signed-in user's Exchange Online mailbox
+// through the Microsoft Search API.
+func Search(cfg *config.Config, account, query string, limit int, topResults bool) ([]SearchResultInfo, error) {
+	if account == "" {
+		return nil, fmt.Errorf("--account is required")
+	}
+	if strings.TrimSpace(query) == "" {
+		return nil, fmt.Errorf("search query is required")
+	}
+
+	token, err := auth.GetAccessToken(cfg, account)
+	if err != nil {
+		return nil, err
+	}
+	hits, err := graph.NewClient(token).SearchMessages(query, limit, topResults)
+	if err != nil {
+		return nil, err
+	}
+
+	results := make([]SearchResultInfo, 0, len(hits))
+	for _, hit := range hits {
+		message := hit.Resource
+		if message.ID == "" {
+			message.ID = hit.HitID
+		}
+		results = append(results, SearchResultInfo{
+			MessageInfo: messageInfoFromGraph(account, message, false),
+			Rank:        hit.Rank,
+			Summary:     hit.Summary,
+		})
+	}
+	return results, nil
+}
+
 // List lists mailbox messages via Microsoft Graph API
 func List(cfg *config.Config, account string, opts ListOptions) ([]MessageInfo, error) {
 	if account == "" {

@@ -68,6 +68,7 @@ var aboutCmd = &cobra.Command{
 		fmt.Fprintln(out, "  md365 contacts search <query> --account <name>")
 		fmt.Fprintln(out, "  md365 contacts search <query> --account <name> --no-cache")
 		fmt.Fprintln(out, "  md365 mail list --account <name> --search <query>")
+		fmt.Fprintln(out, "  md365 mail search <query> --account <name> [--top-results]")
 		fmt.Fprintln(out, "  md365 teams list --account <name>")
 		fmt.Fprintln(out, "  md365 teams files --account <name> --team-id <id> --channel-id <id>")
 		fmt.Fprintln(out, "  md365 onedrive list --account <name>")
@@ -117,6 +118,7 @@ func newAboutInfo() aboutInfo {
 			"md365 contacts search <query> --account <name>",
 			"md365 contacts search <query> --account <name> --no-cache",
 			"md365 mail list --account <name> --search <query>",
+			"md365 mail search <query> --account <name> --top-results",
 			"md365 teams list --account <name>",
 			"md365 teams files --account <name> --team-id <id> --channel-id <id>",
 			"md365 onedrive list --account <name>",

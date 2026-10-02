@@ -64,6 +64,34 @@ func TestParseDriveItemSearchResponse(t *testing.T) {
 	}
 }
 
+func TestNewMessageSearchRequest(t *testing.T) {
+	request := newMessageSearchRequest("subject:budget", 25, 10, true)
+	query := request.Requests[0]
+	if query.Query.QueryString != "subject:budget" || query.From != 25 || query.Size != 10 {
+		t.Fatalf("unexpected message search query: %#v", query)
+	}
+	if !query.EnableTopResults {
+		t.Fatal("top results should be enabled")
+	}
+	if len(query.EntityTypes) != 1 || query.EntityTypes[0] != "message" {
+		t.Fatalf("entityTypes = %#v", query.EntityTypes)
+	}
+}
+
+func TestParseMessageSearchResponse(t *testing.T) {
+	data := []byte(`{"value":[{"hitsContainers":[{"moreResultsAvailable":true,"hits":[{"hitId":"message-1","rank":1,"summary":"matched attachment","resource":{"id":"message-1","subject":"Budget","receivedDateTime":"2026-10-01T10:00:00Z","from":{"emailAddress":{"name":"Ada","address":"ada@example.com"}}}}]}]}]}`)
+	hits, more, err := parseMessageSearchResponse(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !more || len(hits) != 1 {
+		t.Fatalf("hits = %d, more = %v", len(hits), more)
+	}
+	if hits[0].Resource.ID != "message-1" || hits[0].Resource.Subject != "Budget" {
+		t.Fatalf("unexpected hit: %#v", hits[0])
+	}
+}
+
 func TestAmbiguousSearchItem(t *testing.T) {
 	folderLike := DriveItem{File: &FileFacet{MimeType: "application/octet-stream"}}
 	if !ambiguousSearchItem(folderLike) {

@@ -12,6 +12,10 @@ Use `md365` for Microsoft 365 calendar, contact, mail, Teams, OneDrive, and Shar
 - Commands use account names from config, not email addresses. Common local names include `private`, `dcg`, `talendos`, and `oms`.
 - Calendar and contact read/search commands are cache-first. Use `--no-cache` when the user asks for live/fresh data or when the local cache may be stale.
 - Mail, Teams, OneDrive, and SharePoint reads use Microsoft Graph directly today.
+- Use `mail search` for Microsoft Search across the signed-in user's own
+  Exchange Online mailbox and supported attachment content. Use `mail list
+  --search` for folder-aware chronological search, shared/delegated mailboxes,
+  or Microsoft personal accounts.
 - Use `files search` for tenant-wide discovery across visible OneDrive and SharePoint content. A team's default drive is not the same as all of its libraries.
 - Writes always go through Microsoft Graph: calendar create/delete and mail send.
 - Cross-tenant guards use configured account domains. Do not bypass them with `--force` unless the user explicitly asks.
@@ -61,6 +65,8 @@ md365 cal list --account <name> --no-cache --json
 md365 contacts search <query> --account <name> --json
 md365 contacts search <query> --account <name> --no-cache --json
 md365 mail list --account <name> --search <query> --json
+md365 mail search <query> --account <name> --json
+md365 mail search <query> --account <name> --top-results --json
 md365 mail get --account <name> --id <message-id> --json
 md365 mail attachments --account <name> --id <message-id> --json
 md365 teams list --account <name> --json

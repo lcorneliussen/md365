@@ -73,16 +73,35 @@ type DriveItemSearchHit struct {
 	Resource DriveItem `json:"resource"`
 }
 
+// MessageSearchHit is a Microsoft Search result from the signed-in user's
+// Exchange Online mailbox.
+type MessageSearchHit struct {
+	HitID    string  `json:"hitId"`
+	Rank     int     `json:"rank"`
+	Summary  string  `json:"summary,omitempty"`
+	Resource Message `json:"resource"`
+}
+
 type searchRequest struct {
 	Requests []searchQuery `json:"requests"`
 }
 
 type searchQuery struct {
-	EntityTypes []string        `json:"entityTypes"`
-	Query       searchQueryText `json:"query"`
-	From        int             `json:"from"`
-	Size        int             `json:"size"`
-	Fields      []string        `json:"fields"`
+	EntityTypes      []string        `json:"entityTypes"`
+	Query            searchQueryText `json:"query"`
+	From             int             `json:"from"`
+	Size             int             `json:"size"`
+	Fields           []string        `json:"fields"`
+	EnableTopResults bool            `json:"enableTopResults,omitempty"`
+}
+
+type messageSearchResponse struct {
+	Value []struct {
+		HitsContainers []struct {
+			Hits                 []MessageSearchHit `json:"hits"`
+			MoreResultsAvailable bool               `json:"moreResultsAvailable"`
+		} `json:"hitsContainers"`
+	} `json:"value"`
 }
 
 type searchQueryText struct {
@@ -215,6 +234,45 @@ func (c *Client) SearchDriveItems(query string, limit int) ([]DriveItemSearchHit
 	return results, nil
 }
 
+// SearchMessages searches the signed-in user's Exchange Online mailbox. By
+// default Microsoft Search returns newest-first results; topResults promotes
+// the most relevant matches at the start of the result set.
+func (c *Client) SearchMessages(query string, limit int, topResults bool) ([]MessageSearchHit, error) {
+	query = strings.TrimSpace(query)
+	if query == "" {
+		return nil, fmt.Errorf("search query is required")
+	}
+	if limit <= 0 {
+		limit = 25
+	}
+
+	results := make([]MessageSearchHit, 0, min(limit, 25))
+	for from := 0; len(results) < limit; {
+		size := min(limit-len(results), 25)
+		body, err := json.Marshal(newMessageSearchRequest(query, from, size, topResults))
+		if err != nil {
+			return nil, fmt.Errorf("failed to encode message search request: %w", err)
+		}
+		resp, err := c.doRequest("POST", baseURL+"/search/query", body)
+		if err != nil {
+			return nil, err
+		}
+		hits, more, err := parseMessageSearchResponse(resp)
+		if err != nil {
+			return nil, err
+		}
+		results = append(results, hits...)
+		if !more || len(hits) == 0 {
+			break
+		}
+		from += size
+	}
+	if len(results) > limit {
+		results = results[:limit]
+	}
+	return results, nil
+}
+
 func (c *Client) listDriveChildren(prefix, itemID, path string, limit int) ([]DriveItem, error) {
 	var reqURL string
 	switch {
@@ -260,12 +318,43 @@ func newDriveItemSearchRequest(query string, from, size int) searchRequest {
 	}}}
 }
 
+func newMessageSearchRequest(query string, from, size int, topResults bool) searchRequest {
+	return searchRequest{Requests: []searchQuery{{
+		EntityTypes:      []string{"message"},
+		Query:            searchQueryText{QueryString: query},
+		From:             from,
+		Size:             size,
+		EnableTopResults: topResults,
+		Fields: []string{
+			"id", "subject", "from", "toRecipients", "ccRecipients",
+			"receivedDateTime", "sentDateTime", "isRead", "hasAttachments",
+			"bodyPreview", "conversationId", "webLink",
+		},
+	}}}
+}
+
 func parseDriveItemSearchResponse(data []byte) ([]DriveItemSearchHit, bool, error) {
 	var response searchResponse
 	if err := json.Unmarshal(data, &response); err != nil {
 		return nil, false, fmt.Errorf("failed to parse search response: %w", err)
 	}
 	var hits []DriveItemSearchHit
+	more := false
+	for _, value := range response.Value {
+		for _, container := range value.HitsContainers {
+			hits = append(hits, container.Hits...)
+			more = more || container.MoreResultsAvailable
+		}
+	}
+	return hits, more, nil
+}
+
+func parseMessageSearchResponse(data []byte) ([]MessageSearchHit, bool, error) {
+	var response messageSearchResponse
+	if err := json.Unmarshal(data, &response); err != nil {
+		return nil, false, fmt.Errorf("failed to parse message search response: %w", err)
+	}
+	var hits []MessageSearchHit
 	more := false
 	for _, value := range response.Value {
 		for _, container := range value.HitsContainers {
