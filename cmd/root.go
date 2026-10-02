@@ -29,7 +29,7 @@ var rootCmd = &cobra.Command{
 	Long: `md365 - AI- and human-friendly CLI for Microsoft 365
 
 Syncs calendars and contacts as plain Markdown files with YAML frontmatter.
-Mail list/get and write operations go through Microsoft Graph API.`,
+Mail, Teams, OneDrive, SharePoint, and write operations use Microsoft Graph API.`,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 		writer = output.New(output.Options{
 			Format: outputFormat(),
@@ -132,6 +132,9 @@ func init() {
 	rootCmd.AddCommand(calCmd)
 	rootCmd.AddCommand(contactsCmd)
 	rootCmd.AddCommand(mailCmd)
+	rootCmd.AddCommand(teamsCmd)
+	rootCmd.AddCommand(oneDriveCmd)
+	rootCmd.AddCommand(sharePointCmd)
 	rootCmd.AddCommand(authCmd)
 	rootCmd.AddCommand(aboutCmd)
 	rootCmd.AddCommand(commandsCmd)

@@ -44,7 +44,7 @@ var aboutCmd = &cobra.Command{
 		fmt.Fprintln(out, "Read model:")
 		fmt.Fprintln(out, "  Calendar and contact list/search commands default to the local Markdown cache.")
 		fmt.Fprintln(out, "  Use --no-cache on supported commands to bypass local files and read Graph directly.")
-		fmt.Fprintln(out, "  Mail list/get currently reads Microsoft Graph directly.")
+		fmt.Fprintln(out, "  Mail, Teams, OneDrive, and SharePoint currently read Microsoft Graph directly.")
 		fmt.Fprintln(out)
 		fmt.Fprintln(out, "Writes:")
 		fmt.Fprintln(out, "  Creating/deleting calendar events and sending mail always go through Graph.")
@@ -68,6 +68,10 @@ var aboutCmd = &cobra.Command{
 		fmt.Fprintln(out, "  md365 contacts search <query> --account <name>")
 		fmt.Fprintln(out, "  md365 contacts search <query> --account <name> --no-cache")
 		fmt.Fprintln(out, "  md365 mail list --account <name> --search <query>")
+		fmt.Fprintln(out, "  md365 teams list --account <name>")
+		fmt.Fprintln(out, "  md365 teams files --account <name> --team-id <id> --channel-id <id>")
+		fmt.Fprintln(out, "  md365 onedrive list --account <name>")
+		fmt.Fprintln(out, "  md365 sharepoint list --account <name> --team-id <id>")
 		fmt.Fprintln(out)
 		fmt.Fprintln(out, "Agent interface:")
 		fmt.Fprintln(out, "  Use --json for stable envelopes with ok, data, summary, meta, and breadcrumbs.")
@@ -80,11 +84,14 @@ var aboutCmd = &cobra.Command{
 func newAboutInfo() aboutInfo {
 	return aboutInfo{
 		Name:        "md365",
-		Description: "AI- and human-friendly CLI for Microsoft 365 calendars, contacts, and mail as Markdown-oriented workflows.",
+		Description: "AI- and human-friendly CLI for Microsoft 365 calendars, contacts, mail, Teams, OneDrive, and SharePoint.",
 		ReadModel: map[string]string{
-			"calendar": "cache-first; use --no-cache to read Microsoft Graph directly",
-			"contacts": "cache-first; use --no-cache to read Microsoft Graph directly",
-			"mail":     "live Graph reads today; mail index cache is a planned read model",
+			"calendar":   "cache-first; use --no-cache to read Microsoft Graph directly",
+			"contacts":   "cache-first; use --no-cache to read Microsoft Graph directly",
+			"mail":       "live Graph reads today; mail index cache is a planned read model",
+			"teams":      "live Microsoft Graph reads",
+			"onedrive":   "live Microsoft Graph reads",
+			"sharepoint": "live Microsoft Graph reads",
 		},
 		Writes: []string{
 			"Calendar create/delete always goes through Microsoft Graph.",
@@ -106,6 +113,10 @@ func newAboutInfo() aboutInfo {
 			"md365 contacts search <query> --account <name>",
 			"md365 contacts search <query> --account <name> --no-cache",
 			"md365 mail list --account <name> --search <query>",
+			"md365 teams list --account <name>",
+			"md365 teams files --account <name> --team-id <id> --channel-id <id>",
+			"md365 onedrive list --account <name>",
+			"md365 sharepoint list --account <name> --team-id <id>",
 		},
 	}
 }

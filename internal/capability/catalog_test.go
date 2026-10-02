@@ -37,8 +37,19 @@ func TestAllowedAcceptsReadWriteForRead(t *testing.T) {
 }
 
 func TestResolveRejectsUnknownSelector(t *testing.T) {
-	if _, err := Resolve([]string{"teams list"}, nil); err == nil {
+	if _, err := Resolve([]string{"teams frobnicate"}, nil); err == nil {
 		t.Fatal("expected error")
+	}
+}
+
+func TestResolveTeamsAndFilesFeatures(t *testing.T) {
+	plan, err := Resolve(nil, []string{"teams-read", "files-read"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"Channel.ReadBasic.All", "Files.Read.All", "Team.ReadBasic.All", "User.Read", "offline_access"}
+	if !reflect.DeepEqual(plan.Scopes, want) {
+		t.Fatalf("scopes = %#v, want %#v", plan.Scopes, want)
 	}
 }
 
