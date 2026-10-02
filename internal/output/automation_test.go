@@ -71,6 +71,23 @@ func TestProjectionValidatesEmptyTypedCollection(t *testing.T) {
 	}
 }
 
+func TestProjectionValidatesPromotedAnonymousFields(t *testing.T) {
+	type Message struct {
+		ID      string `json:"id"`
+		Subject string `json:"subject"`
+	}
+	type SearchResult struct {
+		Message
+		Rank int `json:"rank"`
+	}
+
+	var stdout bytes.Buffer
+	writer := New(Options{Format: FormatResultsOnly, Stdout: &stdout, Select: []string{"id", "rank"}})
+	if err := writer.OK([]SearchResult{{Message: Message{ID: "message-1"}, Rank: 1}}); err != nil {
+		t.Fatalf("promoted selector: %v", err)
+	}
+}
+
 func TestResultsOnlyAlwaysEmitsJSON(t *testing.T) {
 	var stdout bytes.Buffer
 	writer := New(Options{Format: FormatResultsOnly, Stdout: &stdout})

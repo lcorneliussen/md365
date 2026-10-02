@@ -589,7 +589,10 @@ func (c *Client) doRequestHeaders(method, reqURL string, body []byte, headers ma
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read response: %w", err)
+		if resp.StatusCode >= 400 {
+			return nil, apierr.WrapGraph(resp.StatusCode, "failed to read Microsoft Graph error response", err)
+		}
+		return nil, apierr.Network("failed to read Microsoft Graph response", err)
 	}
 
 	// Check for errors

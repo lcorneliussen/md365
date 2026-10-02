@@ -14,7 +14,7 @@ with Microsoft 365 resources through Microsoft Graph.
 - `--count` writes only the number of results.
 
 Choose one output mode. `--select` and `--fail-empty` can be composed with
-`--json` or `--results-only`.
+`--json`, `--results-only`, or the backward-compatible `--quiet` mode.
 
 ## Projection and empty results
 

@@ -137,11 +137,18 @@ func typeHasJSONPath(dataType reflect.Type, path []string) bool {
 			continue
 		}
 		name := field.Name
+		tagName := ""
 		if tag := field.Tag.Get("json"); tag != "" {
-			name = strings.Split(tag, ",")[0]
-			if name == "-" {
+			tagName = strings.Split(tag, ",")[0]
+			if tagName == "-" {
 				continue
 			}
+			if tagName != "" {
+				name = tagName
+			}
+		}
+		if field.Anonymous && tagName == "" && typeHasJSONPath(field.Type, path) {
+			return true
 		}
 		if name != path[0] {
 			continue
