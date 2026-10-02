@@ -36,6 +36,8 @@ type schemaCommand struct {
 	Mutability             commandmeta.Mutability         `json:"mutability,omitempty"`
 	CanPrompt              bool                           `json:"can_prompt"`
 	Effects                []string                       `json:"effects,omitempty"`
+	OutputModes            []string                       `json:"output_modes,omitempty"`
+	Constraints            []commandmeta.Constraint       `json:"constraints,omitempty"`
 }
 
 type schemaArgument struct {
@@ -91,6 +93,7 @@ var schemaCmd = &cobra.Command{
 func buildSchema(root *cobra.Command) (schemaDocument, error) {
 	root.InitDefaultHelpCmd()
 	root.InitDefaultHelpFlag()
+	root.InitDefaultCompletionCmd()
 	document := schemaDocument{
 		SchemaVersion: commandSchemaVersion,
 		OutputModes: []schemaOutputMode{
@@ -167,12 +170,14 @@ func schemaEntry(command *cobra.Command) (schemaCommand, error) {
 		entry.CanPrompt = policy.CanPrompt
 		entry.Effects = append([]string(nil), policy.Effects...)
 		sort.Strings(entry.Effects)
+		entry.OutputModes = append([]string(nil), policy.OutputModes...)
+		entry.Constraints = append([]commandmeta.Constraint(nil), policy.Constraints...)
 		if hasMicrosoftGraphEffect(entry.Effects) {
 			if _, ok := capability.CommandByName(shortPath); !ok {
 				return schemaCommand{}, fmt.Errorf("Microsoft Graph command %q has no capability metadata", entry.Path)
 			}
 		}
-	} else if command.Runnable() && !isFrameworkCommand(shortPath) {
+	} else if command.Runnable() {
 		return schemaCommand{}, fmt.Errorf("command %q has no execution policy", entry.Path)
 	}
 	return entry, nil
@@ -229,8 +234,4 @@ func parseSchemaArguments(use string) []schemaArgument {
 		result = append(result, schemaArgument{Name: name, Required: !optional, Variadic: variadic})
 	}
 	return result
-}
-
-func isFrameworkCommand(path string) bool {
-	return path == "help" || strings.HasPrefix(path, "completion")
 }

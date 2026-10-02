@@ -118,10 +118,42 @@ func TestSchemaPublishesCompleteObservableEffects(t *testing.T) {
 	for path, want := range map[string][]string{
 		"md365 auth add":   {"authentication", "browser", "keyring_write", "local_write"},
 		"md365 cal create": {"external_communication", "local_write", "microsoft_graph_write"},
-		"md365 cal delete": {"local_read", "local_write", "microsoft_graph_write"},
+		"md365 cal delete": {"external_communication", "local_read", "local_write", "microsoft_graph_write"},
 	} {
 		if !reflect.DeepEqual(byPath[path].Effects, want) {
 			t.Fatalf("%s effects = %#v, want %#v", path, byPath[path].Effects, want)
+		}
+	}
+}
+
+func TestSchemaPublishesOutputModesConstraintsAndFrameworkPolicy(t *testing.T) {
+	document, err := buildSchema(rootCmd)
+	if err != nil {
+		t.Fatal(err)
+	}
+	byPath := map[string]schemaCommand{}
+	for _, command := range document.Commands {
+		byPath[command.Path] = command
+	}
+
+	if !reflect.DeepEqual(byPath["md365 mail search"].OutputModes, []string{"human", "json", "quiet", "ids", "count"}) {
+		t.Fatalf("mail search output modes = %#v", byPath["md365 mail search"].OutputModes)
+	}
+	if !reflect.DeepEqual(byPath["md365 schema"].OutputModes, []string{"human", "json", "quiet"}) {
+		t.Fatalf("schema output modes = %#v", byPath["md365 schema"].OutputModes)
+	}
+	if byPath["md365 help"].Mutability != commandmeta.Read || !reflect.DeepEqual(byPath["md365 help"].OutputModes, []string{"human"}) {
+		t.Fatalf("help contract = %#v", byPath["md365 help"])
+	}
+
+	sharepoint := byPath["md365 sharepoint list"].Constraints
+	if len(sharepoint) != 2 || sharepoint[0].Kind != "exactly_one" || sharepoint[1].Kind != "mutually_exclusive" {
+		t.Fatalf("sharepoint list constraints = %#v", sharepoint)
+	}
+	for _, path := range []string{"md365 cal delete", "md365 mail mark-read", "md365 mail archive", "md365 mail delete"} {
+		constraints := byPath[path].Constraints
+		if len(constraints) != 1 || constraints[0].Kind != "at_least_one" {
+			t.Fatalf("%s constraints = %#v", path, constraints)
 		}
 	}
 }

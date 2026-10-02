@@ -9,7 +9,8 @@ The `1.x` contract contains:
 - required/default flag metadata and inherited global flags;
 - least-privilege delegated Microsoft Graph permissions and feature bundles;
 - central `read`/`write` mutability, prompting behavior, and observable effects;
-- supported output modes and stable error/exit-status mappings.
+- per-command supported output modes, invocation constraints, and stable
+  error/exit-status mappings.
 
 Within a schema major version, fields can be added but existing field meanings
 and enum values are not changed incompatibly. A breaking contract change

@@ -168,7 +168,7 @@ md365 mail list --account work --count
 `md365 schema --json` is the authoritative automation contract. It describes
 aliases, positional arguments, flags/defaults, delegated Microsoft Graph
 permissions, feature bundles, read/write mutability, prompting behavior,
-output modes, and exit statuses. The compatibility policy is documented in
+per-command output modes, invocation constraints, and exit statuses. The compatibility policy is documented in
 [`docs/command-schema.md`](docs/command-schema.md).
 
 JSON success responses use a stable envelope with `ok`, `data`, optional
