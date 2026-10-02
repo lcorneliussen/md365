@@ -155,7 +155,7 @@ func buildDryRunPreview(path string, args []string, policy commandmeta.Policy) (
 		if mailAccount == "" {
 			return dryRunPreview{}, usageError("--account is required")
 		}
-		if _, err := cfg.GetAccount(mailAccount); err != nil {
+		if err := mail.ValidateAccount(cfg, mailAccount); err != nil {
 			return dryRunPreview{}, err
 		}
 		ids := collectIDs(mailIDs, args)

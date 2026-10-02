@@ -293,6 +293,9 @@ func NormalizeRecipients(value string) []string {
 
 // MarkRead marks messages as read
 func MarkRead(cfg *config.Config, account string, ids []string) (int, int, error) {
+	if err := ValidateAccount(cfg, account); err != nil {
+		return 0, 0, err
+	}
 	token, err := auth.GetAccessToken(cfg, account)
 	if err != nil {
 		return 0, 0, err
@@ -313,6 +316,9 @@ func MarkRead(cfg *config.Config, account string, ids []string) (int, int, error
 
 // Archive marks messages as read and moves them to the archive folder
 func Archive(cfg *config.Config, account string, ids []string) (int, int, error) {
+	if err := ValidateAccount(cfg, account); err != nil {
+		return 0, 0, err
+	}
 	token, err := auth.GetAccessToken(cfg, account)
 	if err != nil {
 		return 0, 0, err
@@ -338,6 +344,9 @@ func Archive(cfg *config.Config, account string, ids []string) (int, int, error)
 
 // Delete deletes messages (moves to Deleted Items)
 func Delete(cfg *config.Config, account string, ids []string) (int, int, error) {
+	if err := ValidateAccount(cfg, account); err != nil {
+		return 0, 0, err
+	}
 	token, err := auth.GetAccessToken(cfg, account)
 	if err != nil {
 		return 0, 0, err
@@ -354,6 +363,13 @@ func Delete(cfg *config.Config, account string, ids []string) (int, int, error) 
 		success++
 	}
 	return success, failed, nil
+}
+
+// ValidateAccount checks that a configured Exchange Online account exists
+// without reading a token or issuing a Microsoft Graph request.
+func ValidateAccount(cfg *config.Config, account string) error {
+	_, err := cfg.GetAccount(account)
+	return err
 }
 
 func parseDay(value, timezone string, endOfDay bool) (time.Time, error) {

@@ -29,3 +29,16 @@ func TestPlanWriteNormalizesRecipientsAndEnforcesTenantWithoutGraph(t *testing.T
 		t.Fatalf("explicit force rejected: %v", err)
 	}
 }
+
+func TestValidateAccountRejectsRemovedAccountBeforeTokenLookup(t *testing.T) {
+	cfg := &config.Config{Accounts: map[string]*config.Account{"talendos": {}}}
+	if err := ValidateAccount(cfg, "talendos"); err != nil {
+		t.Fatal(err)
+	}
+	if err := ValidateAccount(cfg, "removed"); err == nil {
+		t.Fatal("removed account accepted")
+	}
+	if _, _, err := MarkRead(cfg, "removed", []string{"message-1"}); err == nil || !strings.Contains(err.Error(), "not found in config") {
+		t.Fatalf("mark-read account validation = %v", err)
+	}
+}
