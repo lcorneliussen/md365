@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/sha256"
+	"crypto/subtle"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -14,9 +15,11 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/lcorneliussen/md365/internal/apierr"
@@ -26,12 +29,31 @@ import (
 )
 
 const (
-	deviceCodeURL  = "https://login.microsoftonline.com/common/oauth2/v2.0/devicecode"
-	authorizeURL   = "https://login.microsoftonline.com/common/oauth2/v2.0/authorize"
-	tokenURL       = "https://login.microsoftonline.com/common/oauth2/v2.0/token"
+	loginBaseURL   = "https://login.microsoftonline.com"
 	tokenBuffer    = 5 * time.Minute // Auto-refresh 5 minutes before expiry
 	keyringService = "md365"         // Service name for keyring storage
 )
+
+var tenantPattern = regexp.MustCompile(`^[A-Za-z0-9.-]+$`)
+
+type oauthEndpoints struct {
+	deviceCode string
+	authorize  string
+	token      string
+}
+
+func endpointsFor(cfg *config.Config, account string) (oauthEndpoints, error) {
+	tenant := cfg.GetTenant(account)
+	if !tenantPattern.MatchString(tenant) {
+		return oauthEndpoints{}, fmt.Errorf("invalid Microsoft Entra tenant %q", tenant)
+	}
+	base := loginBaseURL + "/" + tenant + "/oauth2/v2.0"
+	return oauthEndpoints{
+		deviceCode: base + "/devicecode",
+		authorize:  base + "/authorize",
+		token:      base + "/token",
+	}, nil
+}
 
 // Token represents an OAuth2 token
 type Token struct {
@@ -97,6 +119,10 @@ func GetAccessToken(cfg *config.Config, account string) (string, error) {
 
 // RefreshToken refreshes the access token for an account
 func RefreshToken(cfg *config.Config, account string) error {
+	endpoints, err := endpointsFor(cfg, account)
+	if err != nil {
+		return err
+	}
 	token, err := loadToken(account)
 	if err != nil {
 		return fmt.Errorf("no token found for account '%s'", account)
@@ -112,7 +138,7 @@ func RefreshToken(cfg *config.Config, account string) error {
 		"grant_type":    {"refresh_token"},
 	}
 
-	resp, err := http.PostForm(tokenURL, data)
+	resp, err := http.PostForm(endpoints.token, data)
 	if err != nil {
 		return fmt.Errorf("failed to refresh token: %w", err)
 	}
@@ -159,6 +185,10 @@ func Login(cfg *config.Config, account string, scope string) error {
 	if err != nil {
 		return err
 	}
+	endpoints, err := endpointsFor(cfg, account)
+	if err != nil {
+		return err
+	}
 
 	fmt.Printf("Initiating device code flow for account '%s'...\n", account)
 
@@ -168,7 +198,7 @@ func Login(cfg *config.Config, account string, scope string) error {
 		"scope":     {scope},
 	}
 
-	resp, err := http.PostForm(deviceCodeURL, data)
+	resp, err := http.PostForm(endpoints.deviceCode, data)
 	if err != nil {
 		return fmt.Errorf("failed to initiate device code flow: %w", err)
 	}
@@ -214,7 +244,7 @@ func Login(cfg *config.Config, account string, scope string) error {
 			"grant_type":  {"urn:ietf:params:oauth:grant-type:device_code"},
 		}
 
-		tokenResp, err := http.PostForm(tokenURL, tokenData)
+		tokenResp, err := http.PostForm(endpoints.token, tokenData)
 		if err != nil {
 			return fmt.Errorf("failed to poll for token: %w", err)
 		}
@@ -267,11 +297,56 @@ func Login(cfg *config.Config, account string, scope string) error {
 
 // generateCodeVerifier generates a PKCE code verifier (43-128 chars, URL-safe)
 func generateCodeVerifier() (string, error) {
-	b := make([]byte, 32)
+	return generateRandomURLSafe(32)
+}
+
+// generateState generates an unpredictable OAuth 2.0 state value.
+func generateState() (string, error) {
+	return generateRandomURLSafe(32)
+}
+
+func generateRandomURLSafe(size int) (string, error) {
+	b := make([]byte, size)
 	if _, err := rand.Read(b); err != nil {
 		return "", err
 	}
 	return base64.RawURLEncoding.EncodeToString(b), nil
+}
+
+func authCodeCallbackHandler(expectedState string, resultCh chan<- string, errorCh chan<- error) http.Handler {
+	var complete sync.Once
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "no-store")
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+
+		callbackState := r.URL.Query().Get("state")
+		if callbackState == "" || subtle.ConstantTimeCompare([]byte(callbackState), []byte(expectedState)) != 1 {
+			http.Error(w, "Authentication failed: invalid OAuth state. You may close this tab.", http.StatusBadRequest)
+			return
+		}
+
+		complete.Do(func() {
+			errParam := r.URL.Query().Get("error")
+			if errParam != "" {
+				errDesc := r.URL.Query().Get("error_description")
+				errorCh <- fmt.Errorf("authorization error: %s - %s", errParam, errDesc)
+				w.WriteHeader(http.StatusBadRequest)
+				fmt.Fprint(w, "<html><body><h1>Authentication failed</h1><p>You can close this tab.</p></body></html>")
+				return
+			}
+
+			code := r.URL.Query().Get("code")
+			if code == "" {
+				errorCh <- fmt.Errorf("no authorization code received")
+				w.WriteHeader(http.StatusBadRequest)
+				fmt.Fprint(w, "<html><body><h1>Authentication failed</h1><p>No authorization code received.</p><p>You can close this tab.</p></body></html>")
+				return
+			}
+
+			resultCh <- code
+			fmt.Fprint(w, "<html><body><h1>Authentication successful</h1><p>You can close this tab.</p></body></html>")
+		})
+	})
 }
 
 // generateCodeChallenge generates a PKCE code challenge (SHA256, base64url)
@@ -361,6 +436,10 @@ func LoginAuthCode(cfg *config.Config, account string, scope string) error {
 	if err != nil {
 		return err
 	}
+	endpoints, err := endpointsFor(cfg, account)
+	if err != nil {
+		return err
+	}
 
 	fmt.Printf("Initiating authorization code flow for account '%s'...\n", account)
 
@@ -370,6 +449,10 @@ func LoginAuthCode(cfg *config.Config, account string, scope string) error {
 		return fmt.Errorf("failed to generate code verifier: %w", err)
 	}
 	codeChallenge := generateCodeChallenge(codeVerifier)
+	state, err := generateState()
+	if err != nil {
+		return fmt.Errorf("failed to generate OAuth state: %w", err)
+	}
 
 	// Get a free port
 	port, err := getFreePort()
@@ -380,7 +463,7 @@ func LoginAuthCode(cfg *config.Config, account string, scope string) error {
 	redirectURI := fmt.Sprintf("http://localhost:%d", port)
 
 	// Build authorization URL
-	authURL, err := url.Parse(authorizeURL)
+	authURL, err := url.Parse(endpoints.authorize)
 	if err != nil {
 		return fmt.Errorf("failed to parse authorize URL: %w", err)
 	}
@@ -392,6 +475,7 @@ func LoginAuthCode(cfg *config.Config, account string, scope string) error {
 		"scope":                 {scope},
 		"code_challenge":        {codeChallenge},
 		"code_challenge_method": {"S256"},
+		"state":                 {state},
 	}
 	if acc.Hint != "" {
 		params.Set("login_hint", acc.Hint)
@@ -404,29 +488,7 @@ func LoginAuthCode(cfg *config.Config, account string, scope string) error {
 
 	// Create HTTP server
 	mux := http.NewServeMux()
-	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		code := r.URL.Query().Get("code")
-		errParam := r.URL.Query().Get("error")
-
-		if errParam != "" {
-			errDesc := r.URL.Query().Get("error_description")
-			errorCh <- fmt.Errorf("authorization error: %s - %s", errParam, errDesc)
-			w.Header().Set("Content-Type", "text/html")
-			fmt.Fprintf(w, "<html><body><h1>Authentication failed</h1><p>%s: %s</p><p>You can close this tab.</p></body></html>", errParam, errDesc)
-			return
-		}
-
-		if code == "" {
-			errorCh <- fmt.Errorf("no authorization code received")
-			w.Header().Set("Content-Type", "text/html")
-			fmt.Fprintf(w, "<html><body><h1>Authentication failed</h1><p>No authorization code received.</p><p>You can close this tab.</p></body></html>")
-			return
-		}
-
-		resultCh <- code
-		w.Header().Set("Content-Type", "text/html")
-		fmt.Fprintf(w, "<html><body><h1>Authentication successful</h1><p>You can close this tab.</p></body></html>")
-	})
+	mux.Handle("/", authCodeCallbackHandler(state, resultCh, errorCh))
 
 	server := &http.Server{
 		Addr:    fmt.Sprintf("127.0.0.1:%d", port),
@@ -483,7 +545,7 @@ func LoginAuthCode(cfg *config.Config, account string, scope string) error {
 		"code_verifier": {codeVerifier},
 	}
 
-	resp, err := http.PostForm(tokenURL, tokenData)
+	resp, err := http.PostForm(endpoints.token, tokenData)
 	if err != nil {
 		return fmt.Errorf("failed to exchange code for token: %w", err)
 	}

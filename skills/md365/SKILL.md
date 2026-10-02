@@ -15,6 +15,12 @@ Use `md365` for Microsoft 365 calendar, contact, mail, Teams, OneDrive, and Shar
 - Use `files search` for tenant-wide discovery across visible OneDrive and SharePoint content. A team's default drive is not the same as all of its libraries.
 - Writes always go through Microsoft Graph: calendar create/delete and mail send.
 - Cross-tenant guards use configured account domains. Do not bypass them with `--force` unless the user explicitly asks.
+- md365 is a public native client. A Microsoft Entra application (client) ID is
+  not a secret. Prefer an account-specific, single-tenant public-client app
+  registration for organizational accounts and configure its Microsoft Entra
+  tenant ID or verified domain as `tenant`; authorization code login uses S256
+  PKCE plus OAuth `state`, while device code flow remains available for headless
+  authentication.
 
 ## Output
 
