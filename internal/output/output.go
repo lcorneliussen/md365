@@ -44,9 +44,11 @@ type ErrorResponse struct {
 }
 
 type Options struct {
-	Format Format
-	Stdout io.Writer
-	Stderr io.Writer
+	Format          Format
+	Stdout          io.Writer
+	Stderr          io.Writer
+	WrapUntrusted   bool
+	SanitizeContent bool
 }
 
 type ResponseOption func(*Response)
@@ -87,13 +89,25 @@ func (w *Writer) Format() Format {
 }
 
 func (w *Writer) IsHuman() bool {
-	return w.opts.Format == FormatHuman
+	return w.opts.Format == FormatHuman && !w.opts.WrapUntrusted && !w.opts.SanitizeContent
 }
 
 func (w *Writer) OK(data any, opts ...ResponseOption) error {
-	resp := Response{OK: true, Data: normalizeData(data)}
+	data = normalizeData(data)
+	if (w.opts.WrapUntrusted || w.opts.SanitizeContent) && w.opts.Format != FormatIDs && w.opts.Format != FormatCount {
+		data = ProtectUntrusted(data, ContentSafetyOptions{Wrap: w.opts.WrapUntrusted, Sanitize: w.opts.SanitizeContent})
+	}
+	resp := Response{OK: true, Data: data}
 	for _, opt := range opts {
 		opt(&resp)
+	}
+	if w.opts.WrapUntrusted || w.opts.SanitizeContent {
+		if resp.Meta == nil {
+			resp.Meta = map[string]any{}
+		}
+		resp.Meta["content_safety"] = map[string]any{
+			"wrapped": w.opts.WrapUntrusted, "sanitized": w.opts.SanitizeContent,
+		}
 	}
 
 	switch w.opts.Format {
@@ -106,6 +120,9 @@ func (w *Writer) OK(data any, opts ...ResponseOption) error {
 	case FormatCount:
 		return writeCount(w.opts.Stdout, resp.Data)
 	default:
+		if w.opts.WrapUntrusted || w.opts.SanitizeContent {
+			return writeJSON(w.opts.Stdout, resp)
+		}
 		if resp.Summary != "" {
 			_, err := fmt.Fprintln(w.opts.Stdout, resp.Summary)
 			return err
@@ -116,7 +133,7 @@ func (w *Writer) OK(data any, opts ...ResponseOption) error {
 
 func (w *Writer) Err(err error) {
 	e := apierr.As(err)
-	if w.opts.Format == FormatJSON || w.opts.Format == FormatQuiet || w.opts.Format == FormatIDs || w.opts.Format == FormatCount {
+	if !w.IsHuman() {
 		_ = writeJSON(w.opts.Stderr, ErrorResponse{
 			OK:    false,
 			Error: e.Message,

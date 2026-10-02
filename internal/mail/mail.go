@@ -25,25 +25,25 @@ type ListOptions struct {
 type MessageInfo struct {
 	ID               string   `json:"id"`
 	Account          string   `json:"account"`
-	Subject          string   `json:"subject"`
-	From             string   `json:"from,omitempty"`
-	To               []string `json:"to,omitempty"`
-	CC               []string `json:"cc,omitempty"`
+	Subject          string   `json:"subject" untrusted:"exchange_online,message"`
+	From             string   `json:"from,omitempty" untrusted:"exchange_online,message"`
+	To               []string `json:"to,omitempty" untrusted:"exchange_online,message"`
+	CC               []string `json:"cc,omitempty" untrusted:"exchange_online,message"`
 	ReceivedDateTime string   `json:"received,omitempty"`
 	SentDateTime     string   `json:"sent,omitempty"`
 	IsRead           bool     `json:"is_read"`
 	HasAttachments   bool     `json:"has_attachments"`
-	BodyPreview      string   `json:"body_preview,omitempty"`
+	BodyPreview      string   `json:"body_preview,omitempty" untrusted:"exchange_online,message"`
 	ConversationID   string   `json:"conversation_id,omitempty"`
 	WebLink          string   `json:"web_link,omitempty"`
-	BodyMarkdown     string   `json:"body_markdown,omitempty"`
+	BodyMarkdown     string   `json:"body_markdown,omitempty" untrusted:"exchange_online,message"`
 }
 
 type AttachmentInfo struct {
 	ID          string `json:"id"`
 	Account     string `json:"account"`
 	MessageID   string `json:"message_id"`
-	Name        string `json:"name"`
+	Name        string `json:"name" untrusted:"exchange_online,attachment"`
 	ContentType string `json:"content_type,omitempty"`
 	Size        int    `json:"size,omitempty"`
 	IsInline    bool   `json:"is_inline,omitempty"`
@@ -52,7 +52,7 @@ type AttachmentInfo struct {
 type SearchResultInfo struct {
 	MessageInfo
 	Rank    int    `json:"rank"`
-	Summary string `json:"match_summary,omitempty"`
+	Summary string `json:"match_summary,omitempty" untrusted:"microsoft_search,message_hit"`
 }
 
 // Search discovers messages in the signed-in user's Exchange Online mailbox

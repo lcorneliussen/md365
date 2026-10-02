@@ -32,3 +32,7 @@ workload and an ordered list of Graph methods, resources, normalized request
 fields, and redactions. Multi-step actions such as archive expose every Graph
 operation. Previews never include access/refresh tokens and replace
 mail/calendar body content with its length.
+
+The inherited `--wrap-untrusted` and `--sanitize-content` flags are published
+for every command. Their structured content/provenance contract is documented
+in [`content-safety.md`](content-safety.md).

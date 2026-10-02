@@ -53,6 +53,7 @@ var aboutCmd = &cobra.Command{
 		fmt.Fprintln(out, "  Cross-tenant recipient checks use configured account domains before writes.")
 		fmt.Fprintln(out, "  Use --read-only to block writes and --dry-run to preview supported Outlook mutations.")
 		fmt.Fprintln(out, "  Use --no-input for unattended execution without browser, TUI, or authentication waits.")
+		fmt.Fprintln(out, "  Use --wrap-untrusted --sanitize-content when remote Microsoft 365 text is passed to an AI agent.")
 		fmt.Fprintln(out)
 		fmt.Fprintln(out, "Storage:")
 		fmt.Fprintln(out, "  Config: ~/.config/md365/config.yaml")
@@ -110,6 +111,7 @@ func newAboutInfo() aboutInfo {
 			"--read-only blocks commands that write Microsoft Graph or local synchronized state.",
 			"--dry-run previews supported Outlook mail/calendar mutations without writing.",
 			"--no-input prevents browser, TUI, and authentication waits.",
+			"--wrap-untrusted and --sanitize-content preserve provenance and expose unsafe invisible/control characters in remote content.",
 		},
 		Storage: map[string]string{
 			"config": "~/.config/md365/config.yaml",

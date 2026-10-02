@@ -11,16 +11,16 @@ import (
 type TeamInfo struct {
 	ID          string `json:"id"`
 	Account     string `json:"account"`
-	DisplayName string `json:"display_name"`
-	Description string `json:"description,omitempty"`
+	DisplayName string `json:"display_name" untrusted:"microsoft_teams,team"`
+	Description string `json:"description,omitempty" untrusted:"microsoft_teams,team"`
 }
 
 type ChannelInfo struct {
 	ID              string `json:"id"`
 	Account         string `json:"account"`
 	TeamID          string `json:"team_id"`
-	DisplayName     string `json:"display_name"`
-	Description     string `json:"description,omitempty"`
+	DisplayName     string `json:"display_name" untrusted:"microsoft_teams,channel"`
+	Description     string `json:"description,omitempty" untrusted:"microsoft_teams,channel"`
 	MembershipType  string `json:"membership_type,omitempty"`
 	CreatedDateTime string `json:"created,omitempty"`
 	WebURL          string `json:"web_url,omitempty"`
