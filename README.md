@@ -220,7 +220,18 @@ Available feature bundles currently include `mail-read`, `mail-manage`,
 `sync`. Raw `--scope`/`--scopes` flags remain available as an expert escape
 hatch.
 
-md365 ships with a built-in app registration — no Azure setup needed. If your tenant requires a custom app, you can set `client_id` per account in the config.
+md365 ships with a built-in public-client app registration — no Microsoft Entra
+setup is needed for personal use. A native-app client ID identifies the app; it
+is not a secret and does not grant access without user authorization and a
+token.
+
+For an organization, prefer an account-specific, single-tenant Microsoft Entra
+app registration. Enable public client flows, register a loopback redirect URI
+such as `http://localhost`, add only the delegated Microsoft Graph permissions
+shown by `md365 auth plan`, and apply the tenant's user/admin consent policy.
+Set that registration's application (client) ID as `client_id` on the matching
+md365 account. This limits app-identity, consent, and quota impact to the tenant;
+it does not turn the client ID into a credential.
 
 ### 2. Login and Sync
 
@@ -231,7 +242,10 @@ md365 sync
 
 ### Auth Flows
 
-Most tenants work with the default **Device Code Flow**. If your tenant blocks it (Conditional Access), use **Authorization Code Flow with PKCE**:
+Most tenants work with the default **device code flow**. If Microsoft Entra
+Conditional Access blocks it, use the **authorization code flow with S256 PKCE**.
+md365 also binds the loopback callback to the initiating browser flow with a
+fresh OAuth 2.0 `state` value:
 
 ```yaml
 accounts:

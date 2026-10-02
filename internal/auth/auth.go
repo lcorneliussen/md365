@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/sha256"
+	"crypto/subtle"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -17,6 +18,7 @@ import (
 	"runtime"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/lcorneliussen/md365/internal/apierr"
@@ -267,11 +269,56 @@ func Login(cfg *config.Config, account string, scope string) error {
 
 // generateCodeVerifier generates a PKCE code verifier (43-128 chars, URL-safe)
 func generateCodeVerifier() (string, error) {
-	b := make([]byte, 32)
+	return generateRandomURLSafe(32)
+}
+
+// generateState generates an unpredictable OAuth 2.0 state value.
+func generateState() (string, error) {
+	return generateRandomURLSafe(32)
+}
+
+func generateRandomURLSafe(size int) (string, error) {
+	b := make([]byte, size)
 	if _, err := rand.Read(b); err != nil {
 		return "", err
 	}
 	return base64.RawURLEncoding.EncodeToString(b), nil
+}
+
+func authCodeCallbackHandler(expectedState string, resultCh chan<- string, errorCh chan<- error) http.Handler {
+	var complete sync.Once
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "no-store")
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+
+		callbackState := r.URL.Query().Get("state")
+		if callbackState == "" || subtle.ConstantTimeCompare([]byte(callbackState), []byte(expectedState)) != 1 {
+			http.Error(w, "Authentication failed: invalid OAuth state. You may close this tab.", http.StatusBadRequest)
+			return
+		}
+
+		complete.Do(func() {
+			errParam := r.URL.Query().Get("error")
+			if errParam != "" {
+				errDesc := r.URL.Query().Get("error_description")
+				errorCh <- fmt.Errorf("authorization error: %s - %s", errParam, errDesc)
+				w.WriteHeader(http.StatusBadRequest)
+				fmt.Fprint(w, "<html><body><h1>Authentication failed</h1><p>You can close this tab.</p></body></html>")
+				return
+			}
+
+			code := r.URL.Query().Get("code")
+			if code == "" {
+				errorCh <- fmt.Errorf("no authorization code received")
+				w.WriteHeader(http.StatusBadRequest)
+				fmt.Fprint(w, "<html><body><h1>Authentication failed</h1><p>No authorization code received.</p><p>You can close this tab.</p></body></html>")
+				return
+			}
+
+			resultCh <- code
+			fmt.Fprint(w, "<html><body><h1>Authentication successful</h1><p>You can close this tab.</p></body></html>")
+		})
+	})
 }
 
 // generateCodeChallenge generates a PKCE code challenge (SHA256, base64url)
@@ -370,6 +417,10 @@ func LoginAuthCode(cfg *config.Config, account string, scope string) error {
 		return fmt.Errorf("failed to generate code verifier: %w", err)
 	}
 	codeChallenge := generateCodeChallenge(codeVerifier)
+	state, err := generateState()
+	if err != nil {
+		return fmt.Errorf("failed to generate OAuth state: %w", err)
+	}
 
 	// Get a free port
 	port, err := getFreePort()
@@ -392,6 +443,7 @@ func LoginAuthCode(cfg *config.Config, account string, scope string) error {
 		"scope":                 {scope},
 		"code_challenge":        {codeChallenge},
 		"code_challenge_method": {"S256"},
+		"state":                 {state},
 	}
 	if acc.Hint != "" {
 		params.Set("login_hint", acc.Hint)
@@ -404,29 +456,7 @@ func LoginAuthCode(cfg *config.Config, account string, scope string) error {
 
 	// Create HTTP server
 	mux := http.NewServeMux()
-	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		code := r.URL.Query().Get("code")
-		errParam := r.URL.Query().Get("error")
-
-		if errParam != "" {
-			errDesc := r.URL.Query().Get("error_description")
-			errorCh <- fmt.Errorf("authorization error: %s - %s", errParam, errDesc)
-			w.Header().Set("Content-Type", "text/html")
-			fmt.Fprintf(w, "<html><body><h1>Authentication failed</h1><p>%s: %s</p><p>You can close this tab.</p></body></html>", errParam, errDesc)
-			return
-		}
-
-		if code == "" {
-			errorCh <- fmt.Errorf("no authorization code received")
-			w.Header().Set("Content-Type", "text/html")
-			fmt.Fprintf(w, "<html><body><h1>Authentication failed</h1><p>No authorization code received.</p><p>You can close this tab.</p></body></html>")
-			return
-		}
-
-		resultCh <- code
-		w.Header().Set("Content-Type", "text/html")
-		fmt.Fprintf(w, "<html><body><h1>Authentication successful</h1><p>You can close this tab.</p></body></html>")
-	})
+	mux.Handle("/", authCodeCallbackHandler(state, resultCh, errorCh))
 
 	server := &http.Server{
 		Addr:    fmt.Sprintf("127.0.0.1:%d", port),
