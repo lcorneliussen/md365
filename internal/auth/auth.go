@@ -600,7 +600,10 @@ func loadToken(account string) (*Token, error) {
 
 // saveToken saves a token to keyring, falling back to file
 func saveToken(account string, token *Token) error {
-	data, err := json.MarshalIndent(token, "", "  ")
+	// Must be compact: a blank-password gnome-keyring is stored as a plaintext
+	// GKeyFile, whose values cannot span lines. An indented secret makes the
+	// whole keyring unparseable, not just this item.
+	data, err := json.Marshal(token)
 	if err != nil {
 		return err
 	}
