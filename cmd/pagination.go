@@ -7,7 +7,11 @@ func collectionPage[T any](values []T, limit int) ([]T, output.ResponseOption) {
 	if hasMore {
 		values = values[:limit]
 	}
-	return values, output.WithCollectionPage(hasMore, "", nil)
+	if hasMore {
+		return values, output.WithCollectionPage(true, "", nil)
+	}
+	total := len(values)
+	return values, output.WithCollectionPage(false, "", &total)
 }
 
 func completeCollection(length int) output.ResponseOption {

@@ -53,7 +53,7 @@ md365 does not expose Microsoft Graph `@odata.nextLink` URLs as public cursors.
 | 3 | `auth` | Microsoft Entra authentication required or rejected |
 | 4 | `forbidden` | Delegated permission or access denied |
 | 5 | `rate_limit` | Microsoft Graph throttled the request |
-| 6 | `network` | Transport failure before a Graph response |
+| 6 | `network` | Transport or response-read failure without a Graph error status |
 | 7 | `graph` | Other Microsoft Graph error |
 | 8 | `policy_denied` | md365 execution policy blocked the command |
 | 9 | `conflict` | Graph conflict or failed precondition |

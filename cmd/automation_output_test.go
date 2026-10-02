@@ -89,6 +89,13 @@ func TestCollectionPageUsesOneItemLookahead(t *testing.T) {
 	if response.Meta["has_more"] != true {
 		t.Fatalf("page metadata = %#v", response.Meta)
 	}
+
+	values, option = collectionPage([]string{"one", "two"}, 2)
+	response = output.Response{}
+	option(&response)
+	if response.Meta["has_more"] != false || response.Meta["total"] != 2 {
+		t.Fatalf("exhausted page metadata = %#v", response.Meta)
+	}
 }
 
 func TestProjectionIsRejectedBeforeMicrosoft365Mutation(t *testing.T) {
