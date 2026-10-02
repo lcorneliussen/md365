@@ -2,6 +2,9 @@ package graph
 
 import (
 	"encoding/json"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 )
 
@@ -89,6 +92,61 @@ func TestParseMessageSearchResponse(t *testing.T) {
 	}
 	if hits[0].Resource.ID != "message-1" || hits[0].Resource.Subject != "Budget" {
 		t.Fatalf("unexpected hit: %#v", hits[0])
+	}
+}
+
+func TestSearchMessagesPagesAndStopsOnEmptyPage(t *testing.T) {
+	type observedRequest struct {
+		From  int
+		Size  int
+		Query string
+	}
+	var observed []observedRequest
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost || r.URL.Path != "/search/query" {
+			t.Fatalf("request = %s %s", r.Method, r.URL.Path)
+		}
+		var request searchRequest
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			t.Fatal(err)
+		}
+		query := request.Requests[0]
+		observed = append(observed, observedRequest{From: query.From, Size: query.Size, Query: query.Query.QueryString})
+
+		w.Header().Set("Content-Type", "application/json")
+		if query.From == 0 {
+			fmt.Fprint(w, `{"value":[{"hitsContainers":[{"moreResultsAvailable":true,"hits":[`)
+			for i := 0; i < 25; i++ {
+				if i > 0 {
+					fmt.Fprint(w, ",")
+				}
+				fmt.Fprintf(w, `{"hitId":"message-%d","rank":%d,"resource":{"id":"message-%d"}}`, i, i+1, i)
+			}
+			fmt.Fprint(w, `]}]}]}`)
+			return
+		}
+		fmt.Fprint(w, `{"value":[{"hitsContainers":[{"moreResultsAvailable":true,"hits":[]}]}]}`)
+	}))
+	defer server.Close()
+
+	hits, err := NewClient("token").searchMessages(server.URL+"/search/query", `subject:"Q4 plan"`, 30, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(hits) != 25 {
+		t.Fatalf("hits = %d, want 25", len(hits))
+	}
+	want := []observedRequest{
+		{From: 0, Size: 25, Query: `subject:"Q4 plan"`},
+		{From: 25, Size: 5, Query: `subject:"Q4 plan"`},
+	}
+	if len(observed) != len(want) {
+		t.Fatalf("requests = %#v, want %#v", observed, want)
+	}
+	for i := range want {
+		if observed[i] != want[i] {
+			t.Fatalf("request[%d] = %#v, want %#v", i, observed[i], want[i])
+		}
 	}
 }
 

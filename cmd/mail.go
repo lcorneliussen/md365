@@ -48,10 +48,13 @@ Microsoft personal mailbox search, use mail list --search instead.`,
 		if mailAccount == "" {
 			return usageError("--account is required")
 		}
+		if strings.TrimSpace(args[0]) == "" {
+			return usageError("search query is required")
+		}
 		if mailSearchLimit <= 0 {
 			return usageError("--limit must be greater than zero")
 		}
-		results, err := mail.Search(cfg, mailAccount, args[0], mailSearchLimit, mailTopResults)
+		results, err := mail.Search(cfg, mailAccount, strings.TrimSpace(args[0]), mailSearchLimit, mailTopResults)
 		if err != nil {
 			return err
 		}

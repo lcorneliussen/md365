@@ -238,6 +238,10 @@ func (c *Client) SearchDriveItems(query string, limit int) ([]DriveItemSearchHit
 // default Microsoft Search returns newest-first results; topResults promotes
 // the most relevant matches at the start of the result set.
 func (c *Client) SearchMessages(query string, limit int, topResults bool) ([]MessageSearchHit, error) {
+	return c.searchMessages(baseURL+"/search/query", query, limit, topResults)
+}
+
+func (c *Client) searchMessages(endpoint, query string, limit int, topResults bool) ([]MessageSearchHit, error) {
 	query = strings.TrimSpace(query)
 	if query == "" {
 		return nil, fmt.Errorf("search query is required")
@@ -253,7 +257,7 @@ func (c *Client) SearchMessages(query string, limit int, topResults bool) ([]Mes
 		if err != nil {
 			return nil, fmt.Errorf("failed to encode message search request: %w", err)
 		}
-		resp, err := c.doRequest("POST", baseURL+"/search/query", body)
+		resp, err := c.doRequest("POST", endpoint, body)
 		if err != nil {
 			return nil, err
 		}
