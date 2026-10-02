@@ -5,7 +5,37 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/lcorneliussen/md365/internal/config"
 )
+
+func TestEndpointsFor(t *testing.T) {
+	cfg := &config.Config{Accounts: map[string]*config.Account{
+		"default": {},
+		"tenant":  {Tenant: "contoso.onmicrosoft.com"},
+		"bad":     {Tenant: "../other"},
+	}}
+
+	defaults, err := endpointsFor(cfg, "default")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if defaults.authorize != "https://login.microsoftonline.com/common/oauth2/v2.0/authorize" {
+		t.Fatalf("default authorize endpoint = %q", defaults.authorize)
+	}
+
+	tenant, err := endpointsFor(cfg, "tenant")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if tenant.token != "https://login.microsoftonline.com/contoso.onmicrosoft.com/oauth2/v2.0/token" {
+		t.Fatalf("tenant token endpoint = %q", tenant.token)
+	}
+
+	if _, err := endpointsFor(cfg, "bad"); err == nil {
+		t.Fatal("expected invalid tenant error")
+	}
+}
 
 func TestGenerateState(t *testing.T) {
 	first, err := generateState()

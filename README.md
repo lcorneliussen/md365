@@ -230,7 +230,8 @@ app registration. Enable public client flows, register a loopback redirect URI
 such as `http://localhost`, add only the delegated Microsoft Graph permissions
 shown by `md365 auth plan`, and apply the tenant's user/admin consent policy.
 Set that registration's application (client) ID as `client_id` on the matching
-md365 account. This limits app-identity, consent, and quota impact to the tenant;
+md365 account and set `tenant` to the Microsoft Entra tenant ID or verified
+domain. This limits app-identity, consent, and quota impact to the tenant;
 it does not turn the client ID into a credential.
 
 ### 2. Login and Sync
@@ -250,6 +251,8 @@ fresh OAuth 2.0 `state` value:
 ```yaml
 accounts:
   work:
+    tenant: "contoso.onmicrosoft.com" # or the Microsoft Entra tenant GUID
+    client_id: "YOUR_SINGLE_TENANT_APPLICATION_CLIENT_ID"
     auth_flow: authcode    # opens browser instead of device code
     hint: you@company.com
     scope: "offline_access Calendars.ReadWrite User.Read"

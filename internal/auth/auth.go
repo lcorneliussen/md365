@@ -15,6 +15,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"sort"
 	"strings"
@@ -28,12 +29,31 @@ import (
 )
 
 const (
-	deviceCodeURL  = "https://login.microsoftonline.com/common/oauth2/v2.0/devicecode"
-	authorizeURL   = "https://login.microsoftonline.com/common/oauth2/v2.0/authorize"
-	tokenURL       = "https://login.microsoftonline.com/common/oauth2/v2.0/token"
+	loginBaseURL   = "https://login.microsoftonline.com"
 	tokenBuffer    = 5 * time.Minute // Auto-refresh 5 minutes before expiry
 	keyringService = "md365"         // Service name for keyring storage
 )
+
+var tenantPattern = regexp.MustCompile(`^[A-Za-z0-9.-]+$`)
+
+type oauthEndpoints struct {
+	deviceCode string
+	authorize  string
+	token      string
+}
+
+func endpointsFor(cfg *config.Config, account string) (oauthEndpoints, error) {
+	tenant := cfg.GetTenant(account)
+	if !tenantPattern.MatchString(tenant) {
+		return oauthEndpoints{}, fmt.Errorf("invalid Microsoft Entra tenant %q", tenant)
+	}
+	base := loginBaseURL + "/" + tenant + "/oauth2/v2.0"
+	return oauthEndpoints{
+		deviceCode: base + "/devicecode",
+		authorize:  base + "/authorize",
+		token:      base + "/token",
+	}, nil
+}
 
 // Token represents an OAuth2 token
 type Token struct {
@@ -99,6 +119,10 @@ func GetAccessToken(cfg *config.Config, account string) (string, error) {
 
 // RefreshToken refreshes the access token for an account
 func RefreshToken(cfg *config.Config, account string) error {
+	endpoints, err := endpointsFor(cfg, account)
+	if err != nil {
+		return err
+	}
 	token, err := loadToken(account)
 	if err != nil {
 		return fmt.Errorf("no token found for account '%s'", account)
@@ -114,7 +138,7 @@ func RefreshToken(cfg *config.Config, account string) error {
 		"grant_type":    {"refresh_token"},
 	}
 
-	resp, err := http.PostForm(tokenURL, data)
+	resp, err := http.PostForm(endpoints.token, data)
 	if err != nil {
 		return fmt.Errorf("failed to refresh token: %w", err)
 	}
@@ -161,6 +185,10 @@ func Login(cfg *config.Config, account string, scope string) error {
 	if err != nil {
 		return err
 	}
+	endpoints, err := endpointsFor(cfg, account)
+	if err != nil {
+		return err
+	}
 
 	fmt.Printf("Initiating device code flow for account '%s'...\n", account)
 
@@ -170,7 +198,7 @@ func Login(cfg *config.Config, account string, scope string) error {
 		"scope":     {scope},
 	}
 
-	resp, err := http.PostForm(deviceCodeURL, data)
+	resp, err := http.PostForm(endpoints.deviceCode, data)
 	if err != nil {
 		return fmt.Errorf("failed to initiate device code flow: %w", err)
 	}
@@ -216,7 +244,7 @@ func Login(cfg *config.Config, account string, scope string) error {
 			"grant_type":  {"urn:ietf:params:oauth:grant-type:device_code"},
 		}
 
-		tokenResp, err := http.PostForm(tokenURL, tokenData)
+		tokenResp, err := http.PostForm(endpoints.token, tokenData)
 		if err != nil {
 			return fmt.Errorf("failed to poll for token: %w", err)
 		}
@@ -408,6 +436,10 @@ func LoginAuthCode(cfg *config.Config, account string, scope string) error {
 	if err != nil {
 		return err
 	}
+	endpoints, err := endpointsFor(cfg, account)
+	if err != nil {
+		return err
+	}
 
 	fmt.Printf("Initiating authorization code flow for account '%s'...\n", account)
 
@@ -431,7 +463,7 @@ func LoginAuthCode(cfg *config.Config, account string, scope string) error {
 	redirectURI := fmt.Sprintf("http://localhost:%d", port)
 
 	// Build authorization URL
-	authURL, err := url.Parse(authorizeURL)
+	authURL, err := url.Parse(endpoints.authorize)
 	if err != nil {
 		return fmt.Errorf("failed to parse authorize URL: %w", err)
 	}
@@ -513,7 +545,7 @@ func LoginAuthCode(cfg *config.Config, account string, scope string) error {
 		"code_verifier": {codeVerifier},
 	}
 
-	resp, err := http.PostForm(tokenURL, tokenData)
+	resp, err := http.PostForm(endpoints.token, tokenData)
 	if err != nil {
 		return fmt.Errorf("failed to exchange code for token: %w", err)
 	}

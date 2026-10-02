@@ -23,10 +23,20 @@ type Config struct {
 // Account represents an account configuration
 type Account struct {
 	ClientID string   `yaml:"client_id"`
+	Tenant   string   `yaml:"tenant,omitempty"`
 	AuthFlow string   `yaml:"auth_flow"`
 	Hint     string   `yaml:"hint"`
 	Scope    string   `yaml:"scope"`
 	Domains  []string `yaml:"domains"`
+}
+
+// GetTenant returns the account-specific Microsoft Entra tenant authority.
+// "common" preserves the multi-tenant behavior used by the built-in client.
+func (c *Config) GetTenant(accountName string) string {
+	if acc, ok := c.Accounts[accountName]; ok && acc.Tenant != "" {
+		return acc.Tenant
+	}
+	return "common"
 }
 
 // GetClientID returns the account-specific client_id, falling back to global
