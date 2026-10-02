@@ -101,6 +101,11 @@ func (w *Writer) OK(data any, opts ...ResponseOption) error {
 	if w.opts.FailEmpty && isEmptyResult(data) {
 		return apierr.Empty("command returned no results")
 	}
+	if len(w.opts.Select) > 0 {
+		if err := validateProjectionShape(reflect.TypeOf(data), w.opts.Select); err != nil {
+			return err
+		}
+	}
 	if (w.opts.WrapUntrusted || w.opts.SanitizeContent) && w.opts.Format != FormatIDs && w.opts.Format != FormatCount {
 		data = ProtectUntrusted(data, ContentSafetyOptions{Wrap: w.opts.WrapUntrusted, Sanitize: w.opts.SanitizeContent})
 	}

@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/lcorneliussen/md365/internal/apierr"
+	"github.com/lcorneliussen/md365/internal/commandmeta"
 	"github.com/lcorneliussen/md365/internal/config"
 	"github.com/lcorneliussen/md365/internal/output"
 	"github.com/spf13/cobra"
@@ -48,6 +49,11 @@ func prepareCommand(cmd *cobra.Command, args []string) error {
 	writer = newOutputWriter(cmd.OutOrStdout(), cmd.ErrOrStderr())
 	if err := validateOutputFlags(); err != nil {
 		return err
+	}
+	if strings.TrimSpace(selectFlag) != "" && !dryRunFlag {
+		if _, policy, ok := commandPolicy(cmd); ok && policy.Mutability == commandmeta.Write {
+			return apierr.Usage("--select is not supported for mutating commands; use --dry-run to project a preview")
+		}
 	}
 	if err := enforcePreConfigPolicy(cmd); err != nil {
 		return err

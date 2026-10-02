@@ -90,3 +90,18 @@ func TestCollectionPageUsesOneItemLookahead(t *testing.T) {
 		t.Fatalf("page metadata = %#v", response.Meta)
 	}
 }
+
+func TestProjectionIsRejectedBeforeMicrosoft365Mutation(t *testing.T) {
+	previousJSON, previousSelect, previousDryRun := jsonFlag, selectFlag, dryRunFlag
+	previousWriter := writer
+	jsonFlag, selectFlag, dryRunFlag = true, "invented", false
+	t.Cleanup(func() {
+		jsonFlag, selectFlag, dryRunFlag = previousJSON, previousSelect, previousDryRun
+		writer = previousWriter
+	})
+
+	err := prepareCommand(mailSendCmd, nil)
+	if apierr.As(err).Code != apierr.CodeUsage {
+		t.Fatalf("projection on mail send = %v", err)
+	}
+}

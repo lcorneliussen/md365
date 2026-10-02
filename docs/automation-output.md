@@ -22,6 +22,9 @@ Choose one output mode. `--select` and `--fail-empty` can be composed with
 collection. Dotted paths preserve their object shape when a response contains
 nested objects. A requested field
 that is not present fails with `usage`; md365 never invents a value.
+Projection is rejected for mutating commands so an output-shape error can never
+be reported after a Microsoft 365 write has already completed. Use `--dry-run`
+to project a supported mutation preview safely.
 
 `--fail-empty` turns an empty collection, map, string, or null result into the
 stable `empty_result` error and exit status 11. Without this flag, an empty

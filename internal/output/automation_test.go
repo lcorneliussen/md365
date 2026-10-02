@@ -99,6 +99,24 @@ func TestResultsOnlyAlwaysEmitsJSON(t *testing.T) {
 	}
 }
 
+func TestProjectionValidatesBeforeEmptyCollectionIsProtected(t *testing.T) {
+	type remoteMessage struct {
+		ID      string `json:"id"`
+		Subject string `json:"subject" untrusted:"exchange_online,message"`
+	}
+
+	writer := New(Options{
+		Format:        FormatResultsOnly,
+		Stdout:        &bytes.Buffer{},
+		WrapUntrusted: true,
+		Select:        []string{"invented"},
+	})
+	err := writer.OK([]remoteMessage{})
+	if apierr.As(err).Code != apierr.CodeUsage {
+		t.Fatalf("protected empty collection selector = %v", err)
+	}
+}
+
 func TestFailEmptyUsesStableError(t *testing.T) {
 	writer := New(Options{Format: FormatJSON, Stdout: &bytes.Buffer{}, FailEmpty: true})
 	err := writer.OK([]string{})
