@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/lcorneliussen/md365/internal/apierr"
@@ -38,6 +39,22 @@ func TestProjectionPreservesSelectedFieldsAndCollectionMetadata(t *testing.T) {
 	}
 	if response.Meta["count"] != float64(2) || response.Meta["has_more"] != true || response.Meta["continuation"] != "opaque-cursor" || response.Meta["total"] != float64(7) {
 		t.Fatalf("collection meta = %#v", response.Meta)
+	}
+}
+
+func TestProjectionPreservesLargeIntegerPrecision(t *testing.T) {
+	type driveItem struct {
+		ID   string `json:"id"`
+		Size int64  `json:"size"`
+	}
+
+	var stdout bytes.Buffer
+	writer := New(Options{Format: FormatResultsOnly, Stdout: &stdout, Select: []string{"size"}})
+	if err := writer.OK(driveItem{ID: "item-1", Size: int64(9223372036854775807)}); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(stdout.String(), `"size": 9223372036854775807`) {
+		t.Fatalf("projected integer lost precision: %s", stdout.String())
 	}
 }
 

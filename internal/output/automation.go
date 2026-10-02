@@ -1,6 +1,7 @@
 package output
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"reflect"
@@ -71,7 +72,9 @@ func projectFields(data any, fields []string) (any, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to prepare projection: %w", err)
 	}
-	if err := json.Unmarshal(encoded, &normalized); err != nil {
+	decoder := json.NewDecoder(bytes.NewReader(encoded))
+	decoder.UseNumber()
+	if err := decoder.Decode(&normalized); err != nil {
 		return nil, fmt.Errorf("failed to prepare projection: %w", err)
 	}
 
