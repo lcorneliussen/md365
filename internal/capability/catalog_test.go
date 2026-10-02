@@ -62,6 +62,9 @@ func TestResolveFilesFeatureIncludesSharePointScope(t *testing.T) {
 	if !reflect.DeepEqual(plan.Scopes, want) {
 		t.Fatalf("scopes = %#v, want %#v", plan.Scopes, want)
 	}
+	if len(plan.Commands) != 4 {
+		t.Fatalf("commands = %d, want 4", len(plan.Commands))
+	}
 }
 
 func TestAllowedAcceptsFullyQualifiedGraphScopes(t *testing.T) {

@@ -135,6 +135,7 @@ func init() {
 	rootCmd.AddCommand(teamsCmd)
 	rootCmd.AddCommand(oneDriveCmd)
 	rootCmd.AddCommand(sharePointCmd)
+	rootCmd.AddCommand(filesCmd)
 	rootCmd.AddCommand(authCmd)
 	rootCmd.AddCommand(aboutCmd)
 	rootCmd.AddCommand(commandsCmd)

@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"sync"
 )
 
 // Team is a Microsoft Teams team the signed-in user has joined.
@@ -55,6 +56,48 @@ type ItemReference struct {
 	SiteID    string `json:"siteId,omitempty"`
 }
 
+// Drive is a OneDrive or SharePoint document library.
+type Drive struct {
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	Description string `json:"description,omitempty"`
+	DriveType   string `json:"driveType,omitempty"`
+	WebURL      string `json:"webUrl,omitempty"`
+}
+
+// DriveItemSearchHit is a ranked Microsoft Search result.
+type DriveItemSearchHit struct {
+	HitID    string    `json:"hitId"`
+	Rank     int       `json:"rank"`
+	Summary  string    `json:"summary,omitempty"`
+	Resource DriveItem `json:"resource"`
+}
+
+type searchRequest struct {
+	Requests []searchQuery `json:"requests"`
+}
+
+type searchQuery struct {
+	EntityTypes []string        `json:"entityTypes"`
+	Query       searchQueryText `json:"query"`
+	From        int             `json:"from"`
+	Size        int             `json:"size"`
+	Fields      []string        `json:"fields"`
+}
+
+type searchQueryText struct {
+	QueryString string `json:"queryString"`
+}
+
+type searchResponse struct {
+	Value []struct {
+		HitsContainers []struct {
+			Hits                 []DriveItemSearchHit `json:"hits"`
+			MoreResultsAvailable bool                 `json:"moreResultsAvailable"`
+		} `json:"hitsContainers"`
+	} `json:"value"`
+}
+
 const driveItemSelect = "id,name,size,webUrl,createdDateTime,lastModifiedDateTime,folder,file,parentReference"
 
 // ListJoinedTeams returns teams the signed-in user is a direct member of.
@@ -98,10 +141,78 @@ func (c *Client) ListSiteDriveChildren(siteID, itemID, path string, limit int) (
 	return c.listDriveChildren("sites/"+url.PathEscape(siteID)+"/drive", itemID, path, limit)
 }
 
+// ListDriveChildren lists a folder in a known OneDrive or SharePoint document library.
+func (c *Client) ListDriveChildren(driveID, itemID, path string, limit int) ([]DriveItem, error) {
+	return c.listDriveChildren("drives/"+url.PathEscape(driveID), itemID, path, limit)
+}
+
+// ListGroupDrives lists every document library associated with a Microsoft 365 group.
+func (c *Client) ListGroupDrives(groupID string, limit int) ([]Drive, error) {
+	return c.listDrives("groups/"+url.PathEscape(groupID)+"/drives", limit)
+}
+
+// ListSiteDrives lists every document library associated with a SharePoint site.
+func (c *Client) ListSiteDrives(siteID string, limit int) ([]Drive, error) {
+	return c.listDrives("sites/"+url.PathEscape(siteID)+"/drives", limit)
+}
+
 // ListDriveItemChildren lists children for a known drive and item ID.
 func (c *Client) ListDriveItemChildren(driveID, itemID string, limit int) ([]DriveItem, error) {
-	reqURL := fmt.Sprintf("%s/drives/%s/items/%s/children", baseURL, url.PathEscape(driveID), url.PathEscape(itemID))
-	return listDriveItems(c, reqURL, limit)
+	return c.ListDriveChildren(driveID, itemID, "", limit)
+}
+
+// GetDriveItem returns a drive item with reliable file/folder facets.
+func (c *Client) GetDriveItem(driveID, itemID string) (*DriveItem, error) {
+	query := url.Values{}
+	query.Set("$select", driveItemSelect)
+	reqURL := fmt.Sprintf("%s/drives/%s/items/%s?%s", baseURL, url.PathEscape(driveID), url.PathEscape(itemID), query.Encode())
+	resp, err := c.doRequest("GET", reqURL, nil)
+	if err != nil {
+		return nil, err
+	}
+	var item DriveItem
+	if err := json.Unmarshal(resp, &item); err != nil {
+		return nil, fmt.Errorf("failed to parse drive item: %w", err)
+	}
+	return &item, nil
+}
+
+// SearchDriveItems searches all OneDrive and SharePoint content visible to the signed-in user.
+func (c *Client) SearchDriveItems(query string, limit int) ([]DriveItemSearchHit, error) {
+	query = strings.TrimSpace(query)
+	if query == "" {
+		return nil, fmt.Errorf("search query is required")
+	}
+	if limit <= 0 {
+		limit = 25
+	}
+
+	results := make([]DriveItemSearchHit, 0, min(limit, 100))
+	for from := 0; len(results) < limit; {
+		size := min(limit-len(results), 100)
+		body, err := json.Marshal(newDriveItemSearchRequest(query, from, size))
+		if err != nil {
+			return nil, fmt.Errorf("failed to encode search request: %w", err)
+		}
+		resp, err := c.doRequest("POST", baseURL+"/search/query", body)
+		if err != nil {
+			return nil, err
+		}
+		hits, more, err := parseDriveItemSearchResponse(resp)
+		if err != nil {
+			return nil, err
+		}
+		results = append(results, hits...)
+		if !more || len(hits) == 0 {
+			break
+		}
+		from += size
+	}
+	if len(results) > limit {
+		results = results[:limit]
+	}
+	c.hydrateAmbiguousSearchHits(results)
+	return results, nil
 }
 
 func (c *Client) listDriveChildren(prefix, itemID, path string, limit int) ([]DriveItem, error) {
@@ -125,6 +236,75 @@ func listDriveItems(c *Client, reqURL string, limit int) ([]DriveItem, error) {
 	}
 	reqURL += "?" + query.Encode()
 	return listPaged[DriveItem](c, reqURL, limit)
+}
+
+func (c *Client) listDrives(prefix string, limit int) ([]Drive, error) {
+	query := url.Values{}
+	query.Set("$select", "id,name,description,driveType,webUrl")
+	if limit > 0 {
+		query.Set("$top", strconv.Itoa(min(limit, 999)))
+	}
+	return listPaged[Drive](c, baseURL+"/"+prefix+"?"+query.Encode(), limit)
+}
+
+func newDriveItemSearchRequest(query string, from, size int) searchRequest {
+	return searchRequest{Requests: []searchQuery{{
+		EntityTypes: []string{"driveItem"},
+		Query:       searchQueryText{QueryString: query},
+		From:        from,
+		Size:        size,
+		Fields: []string{
+			"id", "name", "size", "webUrl", "createdDateTime", "lastModifiedDateTime",
+			"folder", "file", "parentReference",
+		},
+	}}}
+}
+
+func parseDriveItemSearchResponse(data []byte) ([]DriveItemSearchHit, bool, error) {
+	var response searchResponse
+	if err := json.Unmarshal(data, &response); err != nil {
+		return nil, false, fmt.Errorf("failed to parse search response: %w", err)
+	}
+	var hits []DriveItemSearchHit
+	more := false
+	for _, value := range response.Value {
+		for _, container := range value.HitsContainers {
+			hits = append(hits, container.Hits...)
+			more = more || container.MoreResultsAvailable
+		}
+	}
+	return hits, more, nil
+}
+
+func (c *Client) hydrateAmbiguousSearchHits(hits []DriveItemSearchHit) {
+	var wait sync.WaitGroup
+	sem := make(chan struct{}, 6)
+	for i := range hits {
+		item := hits[i].Resource
+		if !ambiguousSearchItem(item) || item.ParentReference == nil || item.ParentReference.DriveID == "" {
+			continue
+		}
+		wait.Add(1)
+		go func(index int) {
+			defer wait.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
+
+			item, err := c.GetDriveItem(hits[index].Resource.ParentReference.DriveID, hits[index].Resource.ID)
+			if err == nil {
+				hits[index].Resource = *item
+				return
+			}
+			// Microsoft Search represents some folders as zero-byte octet-stream
+			// files. If hydration fails, avoid publishing a known-wrong type.
+			hits[index].Resource.File = nil
+		}(i)
+	}
+	wait.Wait()
+}
+
+func ambiguousSearchItem(item DriveItem) bool {
+	return item.Folder == nil && item.File != nil && item.Size == 0 && item.File.MimeType == "application/octet-stream"
 }
 
 func listPaged[T any](c *Client, reqURL string, limit int) ([]T, error) {

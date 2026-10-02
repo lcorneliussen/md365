@@ -44,6 +44,8 @@ var commands = []Command{
 	{Name: "teams files", Description: "Browse a channel's SharePoint files", Scopes: []string{"Files.Read.All"}},
 	{Name: "onedrive list", Description: "Browse the signed-in user's OneDrive", Scopes: []string{"Files.Read"}},
 	{Name: "sharepoint list", Description: "Browse SharePoint document libraries", Scopes: []string{"Files.Read.All"}},
+	{Name: "sharepoint libraries", Description: "List SharePoint document libraries", Scopes: []string{"Files.Read.All"}},
+	{Name: "files search", Description: "Search OneDrive and SharePoint files", Scopes: []string{"Files.Read.All"}},
 	{Name: "sync", Description: "Sync calendars and contacts", Scopes: []string{"Calendars.Read", "Contacts.Read"}},
 }
 
@@ -54,7 +56,7 @@ var features = []Feature{
 	{Name: "calendar-read", Description: "Read calendar events", Commands: []string{"cal list"}},
 	{Name: "calendar", Description: "Read and manage calendar events", Commands: []string{"cal list", "cal create", "cal delete"}},
 	{Name: "teams-read", Description: "Browse teams, channels, and channel files", Commands: []string{"teams list", "teams channels", "teams files"}},
-	{Name: "files-read", Description: "Browse OneDrive and SharePoint files", Commands: []string{"onedrive list", "sharepoint list"}},
+	{Name: "files-read", Description: "Search and browse OneDrive and SharePoint files", Commands: []string{"onedrive list", "sharepoint list", "sharepoint libraries", "files search"}},
 	{Name: "sync", Description: "Sync calendars and contacts", Commands: []string{"sync"}},
 }
 
