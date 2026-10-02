@@ -13,9 +13,6 @@ type TeamInfo struct {
 	Account     string `json:"account"`
 	DisplayName string `json:"display_name"`
 	Description string `json:"description,omitempty"`
-	IsArchived  bool   `json:"is_archived"`
-	TenantID    string `json:"tenant_id,omitempty"`
-	WebURL      string `json:"web_url,omitempty"`
 }
 
 type ChannelInfo struct {
@@ -42,8 +39,7 @@ func List(cfg *config.Config, account string, limit int) ([]TeamInfo, error) {
 	for _, value := range values {
 		result = append(result, TeamInfo{
 			ID: value.ID, Account: account, DisplayName: value.DisplayName,
-			Description: value.Description, IsArchived: value.IsArchived,
-			TenantID: value.TenantID, WebURL: value.WebURL,
+			Description: value.Description,
 		})
 	}
 	return result, nil

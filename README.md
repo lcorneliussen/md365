@@ -122,7 +122,7 @@ md365 onedrive list --account work --path "Projects/Current"
 md365 onedrive list --account work --item-id <folder-item-id>
 
 md365 sharepoint list --account work --team-id <team-id>
-md365 sharepoint list --account work --site-id <site-id> --path "Shared Documents"
+md365 sharepoint list --account work --site-id <site-id> --path "Projects/Current"
 
 md365 mail send --account work \         # Send mail via API
   --to "colleague@company.com" \

@@ -13,9 +13,6 @@ type Team struct {
 	ID          string `json:"id"`
 	DisplayName string `json:"displayName"`
 	Description string `json:"description,omitempty"`
-	IsArchived  bool   `json:"isArchived,omitempty"`
-	TenantID    string `json:"tenantId,omitempty"`
-	WebURL      string `json:"webUrl,omitempty"`
 }
 
 // Channel is a channel within a Microsoft Teams team.

@@ -40,11 +40,7 @@ var teamsListCmd = &cobra.Command{
 		}
 		if writer.IsHuman() {
 			for _, value := range values {
-				archived := ""
-				if value.IsArchived {
-					archived = " [archived]"
-				}
-				fmt.Fprintf(cmd.OutOrStdout(), "%s%s\n  %s\n", value.DisplayName, archived, value.ID)
+				fmt.Fprintf(cmd.OutOrStdout(), "%s\n  %s\n", value.DisplayName, value.ID)
 			}
 			if len(values) == 0 {
 				fmt.Fprintln(cmd.OutOrStdout(), "No teams found")
