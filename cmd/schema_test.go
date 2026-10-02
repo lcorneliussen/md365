@@ -70,6 +70,11 @@ func TestSchemaPublishesArgumentsPermissionsAndPolicy(t *testing.T) {
 		t.Fatalf("mail archive arguments = %#v", archive.Arguments)
 	}
 
+	help := byPath["md365 help"]
+	if !reflect.DeepEqual(help.Arguments, []schemaArgument{{Name: "command", Required: false, Variadic: true}}) {
+		t.Fatalf("help arguments = %#v", help.Arguments)
+	}
+
 	send := byPath["md365 mail send"]
 	if send.Mutability != commandmeta.Write || !reflect.DeepEqual(send.DelegatedPermissions, []string{"Mail.Send"}) {
 		t.Fatalf("mail send contract = %#v", send)
@@ -104,10 +109,17 @@ func TestSchemaPublishesArgumentsPermissionsAndPolicy(t *testing.T) {
 	}
 
 	for _, command := range document.Commands {
+		hasHelp := false
 		for _, flag := range command.Flags {
+			if flag.Name == "help" {
+				hasHelp = true
+			}
 			if strings.Contains(strings.ToLower(flag.Usage), "(required)") && !flag.Required && len(flag.RequiredUnless) == 0 {
 				t.Fatalf("%s --%s has required help text but no explicit requirement metadata", command.Path, flag.Name)
 			}
+		}
+		if !hasHelp {
+			t.Fatalf("%s omits its default --help flag", command.Path)
 		}
 	}
 }

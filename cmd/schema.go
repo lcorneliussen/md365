@@ -137,13 +137,14 @@ func buildSchema(root *cobra.Command) (schemaDocument, error) {
 }
 
 func schemaEntry(command *cobra.Command) (schemaCommand, error) {
+	command.InitDefaultHelpFlag()
 	flags := schemaFlags(command)
 	entry := schemaCommand{
 		Path:      command.CommandPath(),
 		Use:       strings.TrimSpace(command.UseLine()),
 		Short:     command.Short,
 		Aliases:   append([]string(nil), command.Aliases...),
-		Arguments: parseSchemaArguments(command.Use),
+		Arguments: parseSchemaArguments(command),
 		Flags:     flags,
 	}
 	sort.Strings(entry.Aliases)
@@ -213,8 +214,8 @@ func hasMicrosoftGraphEffect(effects []string) bool {
 	return false
 }
 
-func parseSchemaArguments(use string) []schemaArgument {
-	fields := strings.Fields(use)
+func parseSchemaArguments(command *cobra.Command) []schemaArgument {
+	fields := strings.Fields(command.Use)
 	if len(fields) < 2 {
 		return nil
 	}
@@ -226,6 +227,9 @@ func parseSchemaArguments(use string) []schemaArgument {
 		optional := strings.HasPrefix(field, "[") && strings.HasSuffix(field, "]")
 		name := strings.Trim(field, "[]")
 		variadic := strings.HasSuffix(name, "...")
+		if command.Name() == "help" && name == "command" {
+			variadic = true
+		}
 		name = strings.TrimSuffix(name, "...")
 		result = append(result, schemaArgument{Name: name, Required: !optional, Variadic: variadic})
 	}
