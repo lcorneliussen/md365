@@ -22,6 +22,7 @@ var (
 	readOnlyFlag bool
 	noInputFlag  bool
 	dryRunFlag   bool
+	loadConfig   = config.Load
 )
 
 // rootCmd represents the base command when called without any subcommands
@@ -34,27 +35,32 @@ var rootCmd = &cobra.Command{
 
 Syncs calendars and contacts as plain Markdown files with YAML frontmatter.
 Mail, Teams, OneDrive, SharePoint, and write operations use Microsoft Graph API.`,
-	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-		writer = output.New(output.Options{
-			Format: outputFormat(),
-			Stdout: cmd.OutOrStdout(),
-			Stderr: cmd.ErrOrStderr(),
-		})
-		if err := validateOutputFlags(); err != nil {
-			return err
-		}
-		// Skip config loading for commands that don't need it
-		if commandSkipsConfig(cmd) {
-			return enforceExecutionPolicy(cmd, args)
-		}
+	PersistentPreRunE: prepareCommand,
+}
 
-		var err error
-		cfg, err = config.Load()
-		if err != nil {
-			return apierr.Usage(err.Error())
-		}
-		return enforceExecutionPolicy(cmd, args)
-	},
+func prepareCommand(cmd *cobra.Command, args []string) error {
+	writer = output.New(output.Options{
+		Format: outputFormat(),
+		Stdout: cmd.OutOrStdout(),
+		Stderr: cmd.ErrOrStderr(),
+	})
+	if err := validateOutputFlags(); err != nil {
+		return err
+	}
+	if err := enforcePreConfigPolicy(cmd); err != nil {
+		return err
+	}
+	// Skip config loading for commands that don't need it
+	if commandSkipsConfig(cmd) {
+		return nil
+	}
+
+	var err error
+	cfg, err = loadConfig()
+	if err != nil {
+		return apierr.Usage(err.Error())
+	}
+	return executeDryRun(cmd, args)
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.

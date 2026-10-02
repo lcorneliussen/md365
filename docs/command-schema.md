@@ -28,6 +28,7 @@ classification emits them consistently.
 
 The `policy_denied` status (8) is emitted when `--read-only`, `--no-input`, or
 `--dry-run` rejects an invocation. Dry-run output describes the Microsoft 365
-workload, Graph operation and resource, method, normalized request fields, and
-redactions. It never includes access/refresh tokens and replaces mail/calendar
-body content with its length.
+workload and an ordered list of Graph methods, resources, normalized request
+fields, and redactions. Multi-step actions such as archive expose every Graph
+operation. Previews never include access/refresh tokens and replace
+mail/calendar body content with its length.

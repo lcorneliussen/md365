@@ -220,7 +220,8 @@ func messageInfoFromGraph(account string, msg graph.Message, includeBody bool) M
 
 // Send sends an email
 func Send(cfg *config.Config, account, to, subject, body string, force bool) error {
-	if err := ValidateWrite(cfg, account, to, force); err != nil {
+	recipients, err := PlanWrite(cfg, account, to, force)
+	if err != nil {
 		return err
 	}
 
@@ -232,7 +233,7 @@ func Send(cfg *config.Config, account, to, subject, body string, force bool) err
 
 	// Send email
 	client := graph.NewClient(token)
-	if err := client.SendMail(to, subject, body); err != nil {
+	if err := client.SendMail(recipients, subject, body); err != nil {
 		return err
 	}
 
@@ -241,7 +242,8 @@ func Send(cfg *config.Config, account, to, subject, body string, force bool) err
 
 // Draft creates an email draft without sending it.
 func Draft(cfg *config.Config, account, to, subject, body string, force bool) (*MessageInfo, error) {
-	if err := ValidateWrite(cfg, account, to, force); err != nil {
+	recipients, err := PlanWrite(cfg, account, to, force)
+	if err != nil {
 		return nil, err
 	}
 
@@ -250,7 +252,7 @@ func Draft(cfg *config.Config, account, to, subject, body string, force bool) (*
 		return nil, err
 	}
 
-	created, err := graph.NewClient(token).CreateDraft(to, subject, body)
+	created, err := graph.NewClient(token).CreateDraft(recipients, subject, body)
 	if err != nil {
 		return nil, err
 	}
@@ -258,16 +260,35 @@ func Draft(cfg *config.Config, account, to, subject, body string, force bool) (*
 	return &result, nil
 }
 
-// ValidateWrite checks account and cross-tenant policy without acquiring a
-// token or issuing a Microsoft Graph request.
-func ValidateWrite(cfg *config.Config, account, to string, force bool) error {
+// PlanWrite normalizes recipients and checks account and cross-tenant policy
+// without acquiring a token or issuing a Microsoft Graph request.
+func PlanWrite(cfg *config.Config, account, to string, force bool) ([]string, error) {
 	if _, err := cfg.GetAccount(account); err != nil {
-		return err
+		return nil, err
+	}
+	recipients := NormalizeRecipients(to)
+	if len(recipients) == 0 {
+		return nil, fmt.Errorf("at least one recipient is required")
 	}
 	if !force {
-		return cfg.CheckCrossTenant(account, []string{to})
+		if err := cfg.CheckCrossTenant(account, recipients); err != nil {
+			return nil, err
+		}
 	}
-	return nil
+	return recipients, nil
+}
+
+// NormalizeRecipients accepts the comma/semicolon-separated representation
+// used by the CLI and returns the addresses sent to Microsoft Graph.
+func NormalizeRecipients(value string) []string {
+	parts := strings.FieldsFunc(value, func(r rune) bool { return r == ',' || r == ';' })
+	result := make([]string, 0, len(parts))
+	for _, part := range parts {
+		if recipient := strings.TrimSpace(part); recipient != "" {
+			result = append(result, recipient)
+		}
+	}
+	return result
 }
 
 // MarkRead marks messages as read

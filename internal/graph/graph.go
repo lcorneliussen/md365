@@ -302,7 +302,7 @@ func (c *Client) DeleteEvent(eventID string) error {
 }
 
 // SendMail sends an email
-func (c *Client) SendMail(to, subject, body string) error {
+func (c *Client) SendMail(to []string, subject, body string) error {
 	url := fmt.Sprintf("%s/me/sendMail", baseURL)
 
 	payload := map[string]interface{}{
@@ -312,13 +312,7 @@ func (c *Client) SendMail(to, subject, body string) error {
 				"contentType": "text",
 				"content":     body,
 			},
-			"toRecipients": []map[string]interface{}{
-				{
-					"emailAddress": map[string]string{
-						"address": to,
-					},
-				},
-			},
+			"toRecipients": graphRecipients(to),
 		},
 	}
 
@@ -332,16 +326,14 @@ func (c *Client) SendMail(to, subject, body string) error {
 }
 
 // CreateDraft creates a mail draft without sending it.
-func (c *Client) CreateDraft(to, subject, body string) (*Message, error) {
+func (c *Client) CreateDraft(to []string, subject, body string) (*Message, error) {
 	payload := Message{
 		Subject: subject,
 		Body: &Body{
 			ContentType: "text",
 			Content:     body,
 		},
-		ToRecipients: []Recipient{{
-			EmailAddress: EmailAddress{Address: to},
-		}},
+		ToRecipients: graphRecipients(to),
 	}
 
 	data, err := json.Marshal(payload)
@@ -359,6 +351,14 @@ func (c *Client) CreateDraft(to, subject, body string) (*Message, error) {
 		return nil, fmt.Errorf("failed to parse response: %w", err)
 	}
 	return &created, nil
+}
+
+func graphRecipients(addresses []string) []Recipient {
+	result := make([]Recipient, 0, len(addresses))
+	for _, address := range addresses {
+		result = append(result, Recipient{EmailAddress: EmailAddress{Address: address}})
+	}
+	return result
 }
 
 const messageListSelect = "id,subject,from,toRecipients,receivedDateTime,isRead,hasAttachments,bodyPreview"

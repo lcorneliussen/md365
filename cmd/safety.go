@@ -16,29 +16,40 @@ import (
 var errDryRunComplete = errors.New("dry run complete")
 
 type dryRunPreview struct {
-	DryRun     bool           `json:"dry_run"`
-	Command    string         `json:"command"`
-	Workload   string         `json:"workload"`
-	Operation  string         `json:"operation"`
-	Method     string         `json:"method,omitempty"`
-	Resource   string         `json:"resource"`
-	Account    string         `json:"account,omitempty"`
-	Request    map[string]any `json:"request,omitempty"`
-	Effects    []string       `json:"effects,omitempty"`
-	Redactions []string       `json:"redactions,omitempty"`
+	DryRun     bool              `json:"dry_run"`
+	Command    string            `json:"command"`
+	Workload   string            `json:"workload"`
+	Operation  string            `json:"operation"`
+	Account    string            `json:"account,omitempty"`
+	Operations []dryRunOperation `json:"operations"`
+	Effects    []string          `json:"effects,omitempty"`
+	Redactions []string          `json:"redactions,omitempty"`
 }
 
-func enforceExecutionPolicy(cmd *cobra.Command, args []string) error {
+type dryRunOperation struct {
+	Method   string         `json:"method"`
+	Resource string         `json:"resource"`
+	Request  map[string]any `json:"request,omitempty"`
+}
+
+func commandPolicy(cmd *cobra.Command) (string, commandmeta.Policy, bool) {
 	parts := strings.Fields(cmd.CommandPath())
 	if len(parts) < 2 {
-		return nil
+		return "", commandmeta.Policy{}, false
 	}
 	path := strings.Join(parts[1:], " ")
 	policy, ok := commandmeta.Lookup(path)
 	if !ok || !cmd.Runnable() {
+		return path, policy, false
+	}
+	return path, policy, true
+}
+
+func enforcePreConfigPolicy(cmd *cobra.Command) error {
+	_, policy, ok := commandPolicy(cmd)
+	if !ok {
 		return nil
 	}
-
 	if noInputFlag && invocationCanPrompt(cmd, policy) {
 		return apierr.Policy(fmt.Sprintf("%s may require interactive Microsoft Entra authentication; remove --no-input to continue", cmd.CommandPath()))
 	}
@@ -50,20 +61,38 @@ func enforceExecutionPolicy(cmd *cobra.Command, args []string) error {
 		if !policy.DryRunSupported {
 			return apierr.Policy(fmt.Sprintf("--dry-run is not supported for %s", cmd.CommandPath()))
 		}
-		preview, err := buildDryRunPreview(path, args, policy)
-		if err != nil {
-			return err
-		}
-		if err := writeOK(preview, output.WithMeta("dry_run", true)); err != nil {
-			return err
-		}
-		return errDryRunComplete
+		return nil
 	}
 
 	if readOnlyFlag && policy.Mutability == commandmeta.Write {
 		return apierr.Policy(fmt.Sprintf("%s is blocked by --read-only", cmd.CommandPath()))
 	}
 	return nil
+}
+
+func executeDryRun(cmd *cobra.Command, args []string) error {
+	if !dryRunFlag {
+		return nil
+	}
+	path, policy, ok := commandPolicy(cmd)
+	if !ok {
+		return nil
+	}
+	preview, err := buildDryRunPreview(path, args, policy)
+	if err != nil {
+		return err
+	}
+	if err := writeOK(preview, output.WithMeta("dry_run", true)); err != nil {
+		return err
+	}
+	return errDryRunComplete
+}
+
+func enforceExecutionPolicy(cmd *cobra.Command, args []string) error {
+	if err := enforcePreConfigPolicy(cmd); err != nil {
+		return err
+	}
+	return executeDryRun(cmd, args)
 }
 
 func invocationCanPrompt(cmd *cobra.Command, policy commandmeta.Policy) bool {
@@ -102,23 +131,25 @@ func buildDryRunPreview(path string, args []string, policy commandmeta.Policy) (
 		if mailAccount == "" || mailTo == "" || mailSubject == "" {
 			return dryRunPreview{}, usageError("--account, --to, and --subject are required")
 		}
-		if err := mail.ValidateWrite(cfg, mailAccount, mailTo, mailForce); err != nil {
+		recipients, err := mail.PlanWrite(cfg, mailAccount, mailTo, mailForce)
+		if err != nil {
 			return dryRunPreview{}, err
 		}
 		preview.Workload = "Exchange Online"
-		preview.Method = "POST"
-		preview.Resource = "/me/sendMail"
 		preview.Operation = "send_message"
+		resource := "/me/sendMail"
 		if path == "mail draft" {
-			preview.Resource = "/me/messages"
+			resource = "/me/messages"
 			preview.Operation = "create_draft"
 		}
-		preview.Request = map[string]any{
-			"to":          splitRecipients(mailTo),
-			"subject":     mailSubject,
-			"body_length": len(mailBody),
-			"force":       mailForce,
-		}
+		preview.Operations = []dryRunOperation{{
+			Method: "POST", Resource: resource,
+			Request: map[string]any{
+				"to":          recipients,
+				"subject":     mailSubject,
+				"body_length": len(mailBody),
+			},
+		}}
 		preview.Redactions = []string{"body"}
 	case "mail mark-read", "mail archive", "mail delete":
 		if mailAccount == "" {
@@ -132,18 +163,21 @@ func buildDryRunPreview(path string, args []string, policy commandmeta.Policy) (
 			return dryRunPreview{}, usageError("no message IDs provided (use --id or positional arguments)")
 		}
 		preview.Workload = "Exchange Online"
-		preview.Resource = "/me/messages/{id}"
-		preview.Request = map[string]any{"message_ids": ids, "message_count": len(ids)}
+		request := map[string]any{"message_ids": ids, "message_count": len(ids)}
 		switch path {
 		case "mail mark-read":
-			preview.Method, preview.Operation = "PATCH", "mark_message_read"
-			preview.Request["is_read"] = true
+			preview.Operation = "mark_message_read"
+			request["is_read"] = true
+			preview.Operations = []dryRunOperation{{Method: "PATCH", Resource: "/me/messages/{id}", Request: request}}
 		case "mail archive":
-			preview.Method, preview.Operation = "POST", "move_message_to_archive"
-			preview.Request["destination"] = "archive"
+			preview.Operation = "archive_message"
+			preview.Operations = []dryRunOperation{
+				{Method: "PATCH", Resource: "/me/messages/{id}", Request: map[string]any{"message_ids": ids, "message_count": len(ids), "is_read": true}},
+				{Method: "POST", Resource: "/me/messages/{id}/move", Request: map[string]any{"message_ids": ids, "message_count": len(ids), "destination_id": "archive"}},
+			}
 		case "mail delete":
-			preview.Method, preview.Operation = "POST", "move_message_to_deleted_items"
-			preview.Request["destination"] = "deleteditems"
+			preview.Operation = "move_message_to_deleted_items"
+			preview.Operations = []dryRunOperation{{Method: "DELETE", Resource: "/me/messages/{id}", Request: request}}
 		}
 	case "cal create":
 		if calAccount == "" || calSubject == "" || calStart == "" || calEnd == "" {
@@ -154,19 +188,19 @@ func buildDryRunPreview(path string, args []string, policy commandmeta.Policy) (
 			return dryRunPreview{}, err
 		}
 		preview.Workload = "Outlook calendar"
-		preview.Method = "POST"
-		preview.Resource = "/me/events"
 		preview.Operation = "create_event"
-		preview.Request = map[string]any{
-			"subject":        calSubject,
-			"start":          event.Start,
-			"end":            event.End,
-			"location":       calLocation,
-			"attendees":      append([]string(nil), calAttendees...),
-			"attendee_count": len(calAttendees),
-			"body_length":    len(calBody),
-			"force":          calForce,
-		}
+		preview.Operations = []dryRunOperation{{
+			Method: "POST", Resource: "/me/events",
+			Request: map[string]any{
+				"subject":        calSubject,
+				"start":          event.Start,
+				"end":            event.End,
+				"location":       calLocation,
+				"attendees":      append([]string(nil), calAttendees...),
+				"attendee_count": len(calAttendees),
+				"body_length":    len(calBody),
+			},
+		}}
 		preview.Redactions = []string{"body"}
 	case "cal delete":
 		file := calFile
@@ -182,10 +216,8 @@ func buildDryRunPreview(path string, args []string, policy commandmeta.Policy) (
 		}
 		preview.Account = account
 		preview.Workload = "Outlook calendar"
-		preview.Method = "DELETE"
-		preview.Resource = "/me/events/{id}"
 		preview.Operation = "delete_event"
-		preview.Request = map[string]any{"event_id": id, "cached_event_file": file}
+		preview.Operations = []dryRunOperation{{Method: "DELETE", Resource: "/me/events/{id}", Request: map[string]any{"event_id": id, "cached_event_file": file}}}
 	default:
 		return dryRunPreview{}, apierr.Policy(fmt.Sprintf("--dry-run is not implemented for md365 %s", path))
 	}
@@ -200,15 +232,4 @@ func commandAccount(path string) string {
 		return calAccount
 	}
 	return ""
-}
-
-func splitRecipients(value string) []string {
-	parts := strings.FieldsFunc(value, func(r rune) bool { return r == ',' || r == ';' })
-	result := make([]string, 0, len(parts))
-	for _, part := range parts {
-		if recipient := strings.TrimSpace(part); recipient != "" {
-			result = append(result, recipient)
-		}
-	}
-	return result
 }

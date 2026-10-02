@@ -76,6 +76,30 @@ func TestNoInputBlocksMicrosoftEntraLoginBeforeExecution(t *testing.T) {
 	}
 }
 
+func TestPolicyDenialPrecedesConfigurationLoading(t *testing.T) {
+	oldReadOnly, oldNoInput, oldDryRun, oldLoad := readOnlyFlag, noInputFlag, dryRunFlag, loadConfig
+	called := false
+	loadConfig = func() (*config.Config, error) {
+		called = true
+		return nil, errors.New("broken config")
+	}
+	t.Cleanup(func() {
+		readOnlyFlag, noInputFlag, dryRunFlag, loadConfig = oldReadOnly, oldNoInput, oldDryRun, oldLoad
+	})
+
+	readOnlyFlag, noInputFlag, dryRunFlag = true, false, false
+	err := prepareCommand(syncCmd, nil)
+	if apierr.As(err).Code != apierr.CodePolicy || called {
+		t.Fatalf("read-only preflight = %v, config called = %v", err, called)
+	}
+
+	readOnlyFlag, noInputFlag, dryRunFlag = false, true, false
+	err = prepareCommand(authLoginCmd, nil)
+	if apierr.As(err).Code != apierr.CodePolicy || called {
+		t.Fatalf("no-input preflight = %v, config called = %v", err, called)
+	}
+}
+
 func TestUnsupportedDryRunFailsClosed(t *testing.T) {
 	oldDryRun, oldReadOnly, oldNoInput := dryRunFlag, readOnlyFlag, noInputFlag
 	dryRunFlag, readOnlyFlag, noInputFlag = true, false, false
@@ -131,12 +155,12 @@ func TestRepresentativeDryRunPlans(t *testing.T) {
 	tests := []struct {
 		path      string
 		operation string
-		method    string
+		methods   []string
 	}{
-		{"mail mark-read", "mark_message_read", "PATCH"},
-		{"mail archive", "move_message_to_archive", "POST"},
-		{"mail delete", "move_message_to_deleted_items", "POST"},
-		{"cal delete", "delete_event", "DELETE"},
+		{"mail mark-read", "mark_message_read", []string{"PATCH"}},
+		{"mail archive", "archive_message", []string{"PATCH", "POST"}},
+		{"mail delete", "move_message_to_deleted_items", []string{"DELETE"}},
+		{"cal delete", "delete_event", []string{"DELETE"}},
 	}
 	for _, test := range tests {
 		policy, _ := commandmeta.Lookup(test.path)
@@ -144,7 +168,11 @@ func TestRepresentativeDryRunPlans(t *testing.T) {
 		if err != nil {
 			t.Fatalf("%s: %v", test.path, err)
 		}
-		if preview.Operation != test.operation || preview.Method != test.method {
+		methods := make([]string, 0, len(preview.Operations))
+		for _, operation := range preview.Operations {
+			methods = append(methods, operation.Method)
+		}
+		if preview.Operation != test.operation || !reflect.DeepEqual(methods, test.methods) {
 			t.Fatalf("%s preview = %#v", test.path, preview)
 		}
 	}
@@ -154,8 +182,8 @@ func TestRepresentativeDryRunPlans(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !reflect.DeepEqual(preview.Request["message_ids"], []string{"message-1", "message-2"}) {
-		t.Fatalf("deduplicated message IDs = %#v", preview.Request["message_ids"])
+	if !reflect.DeepEqual(preview.Operations[0].Request["message_ids"], []string{"message-1", "message-2"}) {
+		t.Fatalf("deduplicated message IDs = %#v", preview.Operations[0].Request["message_ids"])
 	}
 }
 
