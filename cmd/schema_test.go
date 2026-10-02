@@ -216,6 +216,17 @@ func TestSchemaPublishesOutputModesConstraintsAndFrameworkPolicy(t *testing.T) {
 	if len(authPlan) != 1 || authPlan[0].Kind != "at_least_one" {
 		t.Fatalf("auth plan constraints = %#v", authPlan)
 	}
+	for _, path := range []string{"md365 auth add", "md365 auth login"} {
+		authConstraints := byPath[path].Constraints
+		if len(authConstraints) != 2 {
+			t.Fatalf("%s constraints = %#v", path, authConstraints)
+		}
+		for _, constraint := range authConstraints {
+			if constraint.Kind != "mutually_exclusive" || len(constraint.Options) != 2 || len(constraint.Options[0].Flags) != 1 || len(constraint.Options[1].Flags) != 1 {
+				t.Fatalf("%s constraint is not pairwise: %#v", path, constraint)
+			}
+		}
+	}
 }
 
 func TestSchemaPublishesOnlyEmittedExitStatuses(t *testing.T) {
@@ -232,6 +243,19 @@ func TestSchemaPublishesOnlyEmittedExitStatuses(t *testing.T) {
 	}
 	if !reflect.DeepEqual(document.ExitStatuses, want) {
 		t.Fatalf("exit statuses = %#v, want %#v", document.ExitStatuses, want)
+	}
+}
+
+func TestGraphCapabilityValidationRequiresDelegatedPermissions(t *testing.T) {
+	if err := validateGraphCapability("md365 example", capability.Command{}, false); err == nil || !strings.Contains(err.Error(), "no capability metadata") {
+		t.Fatalf("missing capability error = %v", err)
+	}
+	if err := validateGraphCapability("md365 example", capability.Command{Name: "example"}, true); err == nil || !strings.Contains(err.Error(), "no delegated permissions") {
+		t.Fatalf("empty capability error = %v", err)
+	}
+	conditional := capability.Command{Name: "example", ConditionalScopes: []capability.ConditionalScopes{{WhenFlag: "live", Scopes: []string{"User.Read"}}}}
+	if err := validateGraphCapability("md365 example", conditional, true); err != nil {
+		t.Fatalf("conditional capability rejected: %v", err)
 	}
 }
 

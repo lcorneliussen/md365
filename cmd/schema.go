@@ -170,14 +170,34 @@ func schemaEntry(command *cobra.Command) (schemaCommand, error) {
 		entry.OutputModes = append([]string(nil), policy.OutputModes...)
 		entry.Constraints = append([]commandmeta.Constraint(nil), policy.Constraints...)
 		if hasMicrosoftGraphEffect(entry.Effects) {
-			if _, ok := capability.CommandByName(shortPath); !ok {
-				return schemaCommand{}, fmt.Errorf("Microsoft Graph command %q has no capability metadata", entry.Path)
+			graphCommand, ok := capability.CommandByName(shortPath)
+			if err := validateGraphCapability(entry.Path, graphCommand, ok); err != nil {
+				return schemaCommand{}, err
 			}
 		}
 	} else if command.Runnable() {
 		return schemaCommand{}, fmt.Errorf("command %q has no execution policy", entry.Path)
 	}
 	return entry, nil
+}
+
+func validateGraphCapability(path string, command capability.Command, found bool) error {
+	if !found {
+		return fmt.Errorf("Microsoft Graph command %q has no capability metadata", path)
+	}
+	if len(command.Scopes) == 0 && !hasConditionalScopes(command.ConditionalScopes) {
+		return fmt.Errorf("Microsoft Graph command %q has no delegated permissions", path)
+	}
+	return nil
+}
+
+func hasConditionalScopes(conditions []capability.ConditionalScopes) bool {
+	for _, condition := range conditions {
+		if len(condition.Scopes) > 0 {
+			return true
+		}
+	}
+	return false
 }
 
 func schemaFlags(command *cobra.Command) []schemaFlag {
