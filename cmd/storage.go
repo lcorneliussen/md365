@@ -10,13 +10,14 @@ import (
 )
 
 var (
-	storageAccount string
-	storagePath    string
-	storageItemID  string
-	storageTeamID  string
-	storageSiteID  string
-	storageDriveID string
-	storageLimit   int
+	storageAccount   string
+	storagePath      string
+	storageItemID    string
+	storageTeamID    string
+	storageSiteID    string
+	storageDriveID   string
+	storageLimit     int
+	filesSearchLimit int
 )
 
 var filesCmd = &cobra.Command{
@@ -37,10 +38,10 @@ var filesSearchCmd = &cobra.Command{
 		if query == "" {
 			return usageError("search query must not be empty")
 		}
-		if storageLimit <= 0 {
+		if filesSearchLimit <= 0 {
 			return usageError("--limit must be greater than zero")
 		}
-		values, err := storage.Search(cfg, storageAccount, query, storageLimit)
+		values, err := storage.Search(cfg, storageAccount, query, filesSearchLimit)
 		if err != nil {
 			return err
 		}
@@ -241,7 +242,7 @@ func printStorageItems(cmd *cobra.Command, values []storage.ItemInfo) {
 
 func init() {
 	filesSearchCmd.Flags().StringVar(&storageAccount, "account", "", "Account (required)")
-	filesSearchCmd.Flags().IntVar(&storageLimit, "limit", 25, "Maximum search results")
+	filesSearchCmd.Flags().IntVar(&filesSearchLimit, "limit", 25, "Maximum search results")
 	filesCmd.AddCommand(filesSearchCmd)
 
 	addStorageListFlags(oneDriveListCmd)
