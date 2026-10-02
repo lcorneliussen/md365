@@ -43,7 +43,7 @@ var commands = []Command{
 	{Name: "teams channels", Description: "List channels in a team", Scopes: []string{"Channel.ReadBasic.All"}},
 	{Name: "teams files", Description: "Browse a channel's SharePoint files", Scopes: []string{"Files.Read.All"}},
 	{Name: "onedrive list", Description: "Browse the signed-in user's OneDrive", Scopes: []string{"Files.Read"}},
-	{Name: "sharepoint list", Description: "Browse SharePoint document libraries", Scopes: []string{"Files.Read"}},
+	{Name: "sharepoint list", Description: "Browse SharePoint document libraries", Scopes: []string{"Files.Read.All"}},
 	{Name: "sync", Description: "Sync calendars and contacts", Scopes: []string{"Calendars.Read", "Contacts.Read"}},
 }
 

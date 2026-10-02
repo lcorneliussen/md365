@@ -53,6 +53,17 @@ func TestResolveTeamsAndFilesFeatures(t *testing.T) {
 	}
 }
 
+func TestResolveFilesFeatureIncludesSharePointScope(t *testing.T) {
+	plan, err := Resolve(nil, []string{"files-read"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"Files.Read.All", "User.Read", "offline_access"}
+	if !reflect.DeepEqual(plan.Scopes, want) {
+		t.Fatalf("scopes = %#v, want %#v", plan.Scopes, want)
+	}
+}
+
 func TestAllowedAcceptsFullyQualifiedGraphScopes(t *testing.T) {
 	command, ok := findCommand("mail list")
 	if !ok {
