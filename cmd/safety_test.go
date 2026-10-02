@@ -110,6 +110,42 @@ func TestUnsupportedDryRunFailsClosed(t *testing.T) {
 	}
 }
 
+func TestFallbackWriterPreservesContentSafetyOptions(t *testing.T) {
+	oldJSON, oldQuiet, oldIDs, oldCount := jsonFlag, quietFlag, idsOnlyFlag, countFlag
+	oldWrap, oldSanitize := wrapUntrustedFlag, sanitizeContentFlag
+	jsonFlag, quietFlag, idsOnlyFlag, countFlag = false, false, false, false
+	wrapUntrustedFlag, sanitizeContentFlag = true, true
+	t.Cleanup(func() {
+		jsonFlag, quietFlag, idsOnlyFlag, countFlag = oldJSON, oldQuiet, oldIDs, oldCount
+		wrapUntrustedFlag, sanitizeContentFlag = oldWrap, oldSanitize
+	})
+
+	var stdout, stderr bytes.Buffer
+	fallback := newOutputWriter(&stdout, &stderr)
+	if fallback.IsHuman() {
+		t.Fatal("fallback lost content-safety mode")
+	}
+	fallback.Err(errors.New("early failure"))
+	var response output.ErrorResponse
+	if err := json.Unmarshal(stderr.Bytes(), &response); err != nil {
+		t.Fatalf("fallback error is not JSON: %v (%s)", err, stderr.String())
+	}
+	if response.OK || response.Code != apierr.CodeUnknown {
+		t.Fatalf("fallback error = %#v", response)
+	}
+}
+
+func TestPrescanContentSafetyFlagsBeforeUnknownCommand(t *testing.T) {
+	oldWrap, oldSanitize := wrapUntrustedFlag, sanitizeContentFlag
+	wrapUntrustedFlag, sanitizeContentFlag = false, false
+	t.Cleanup(func() { wrapUntrustedFlag, sanitizeContentFlag = oldWrap, oldSanitize })
+
+	prescanContentSafetyFlags([]string{"--wrap-untrusted", "--sanitize-content=true", "unknown", "--wrap-untrusted=false"})
+	if !wrapUntrustedFlag || !sanitizeContentFlag {
+		t.Fatalf("prescanned flags = wrap:%v sanitize:%v", wrapUntrustedFlag, sanitizeContentFlag)
+	}
+}
+
 func TestMailSendDryRunIsRedactedAndCompletesWithoutExecution(t *testing.T) {
 	oldAccount, oldTo, oldSubject, oldBody, oldForce := mailAccount, mailTo, mailSubject, mailBody, mailForce
 	oldDryRun, oldReadOnly, oldNoInput, oldWriter, oldCfg := dryRunFlag, readOnlyFlag, noInputFlag, writer, cfg

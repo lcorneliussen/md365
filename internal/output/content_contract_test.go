@@ -3,6 +3,7 @@ package output_test
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
 
@@ -99,6 +100,12 @@ func TestContentSafetyIsOptInAndHumanSafetyOutputIsStructured(t *testing.T) {
 	}
 	if !strings.Contains(safe.String(), `"content_safety"`) || !strings.Contains(safe.String(), `"untrusted": true`) {
 		t.Fatalf("structured safety output = %s", safe.String())
+	}
+
+	safe.Reset()
+	safeWriter.Err(errors.New("Graph unavailable"))
+	if !strings.Contains(safe.String(), `"ok": false`) || !strings.Contains(safe.String(), `"code": "unknown"`) {
+		t.Fatalf("structured safety error = %s", safe.String())
 	}
 }
 

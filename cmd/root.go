@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"errors"
+	"io"
 	"os"
 	"strings"
 
@@ -41,13 +42,7 @@ Mail, Teams, OneDrive, SharePoint, and write operations use Microsoft Graph API.
 }
 
 func prepareCommand(cmd *cobra.Command, args []string) error {
-	writer = output.New(output.Options{
-		Format:          outputFormat(),
-		Stdout:          cmd.OutOrStdout(),
-		Stderr:          cmd.ErrOrStderr(),
-		WrapUntrusted:   wrapUntrustedFlag,
-		SanitizeContent: sanitizeContentFlag,
-	})
+	writer = newOutputWriter(cmd.OutOrStdout(), cmd.ErrOrStderr())
 	if err := validateOutputFlags(); err != nil {
 		return err
 	}
@@ -69,17 +64,46 @@ func prepareCommand(cmd *cobra.Command, args []string) error {
 
 // Execute adds all child commands to the root command and sets flags appropriately.
 func Execute() int {
+	prescanContentSafetyFlags(os.Args[1:])
 	if err := rootCmd.Execute(); err != nil {
 		if errors.Is(err, errDryRunComplete) {
 			return 0
 		}
 		if writer == nil {
-			writer = output.New(output.Options{Format: outputFormat()})
+			writer = newOutputWriter(nil, nil)
 		}
 		writer.Err(err)
 		return output.ExitCodeFor(err)
 	}
 	return 0
+}
+
+func prescanContentSafetyFlags(args []string) {
+	for _, arg := range args {
+		if !strings.HasPrefix(arg, "-") {
+			return
+		}
+		switch arg {
+		case "--wrap-untrusted", "--wrap-untrusted=true":
+			wrapUntrustedFlag = true
+		case "--wrap-untrusted=false":
+			wrapUntrustedFlag = false
+		case "--sanitize-content", "--sanitize-content=true":
+			sanitizeContentFlag = true
+		case "--sanitize-content=false":
+			sanitizeContentFlag = false
+		}
+	}
+}
+
+func newOutputWriter(stdout, stderr io.Writer) *output.Writer {
+	return output.New(output.Options{
+		Format:          outputFormat(),
+		Stdout:          stdout,
+		Stderr:          stderr,
+		WrapUntrusted:   wrapUntrustedFlag,
+		SanitizeContent: sanitizeContentFlag,
+	})
 }
 
 func outputFormat() output.Format {
@@ -167,7 +191,7 @@ func init() {
 // fatal prints an error and exits
 func fatal(err error) {
 	if writer == nil {
-		writer = output.New(output.Options{Format: outputFormat()})
+		writer = newOutputWriter(nil, nil)
 	}
 	writer.Err(err)
 	os.Exit(output.ExitCodeFor(err))
@@ -179,7 +203,7 @@ func usageError(message string) error {
 
 func writeOK(data any, opts ...output.ResponseOption) error {
 	if writer == nil {
-		writer = output.New(output.Options{Format: outputFormat()})
+		writer = newOutputWriter(nil, nil)
 	}
 	return writer.OK(data, opts...)
 }

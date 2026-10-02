@@ -133,7 +133,7 @@ func (w *Writer) OK(data any, opts ...ResponseOption) error {
 
 func (w *Writer) Err(err error) {
 	e := apierr.As(err)
-	if w.opts.Format == FormatJSON || w.opts.Format == FormatQuiet || w.opts.Format == FormatIDs || w.opts.Format == FormatCount {
+	if !w.IsHuman() {
 		_ = writeJSON(w.opts.Stderr, ErrorResponse{
 			OK:    false,
 			Error: e.Message,
