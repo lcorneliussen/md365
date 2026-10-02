@@ -29,6 +29,7 @@ type Plan struct {
 
 var commands = []Command{
 	{Name: "mail list", Description: "List messages", Scopes: []string{"Mail.Read"}},
+	{Name: "mail search", Description: "Search the signed-in user's Exchange Online mailbox", Scopes: []string{"Mail.Read"}},
 	{Name: "mail get", Description: "Read a message", Scopes: []string{"Mail.Read"}},
 	{Name: "mail attachments", Description: "List message attachments", Scopes: []string{"Mail.Read"}},
 	{Name: "mail mark-read", Description: "Mark messages as read", Scopes: []string{"Mail.ReadWrite"}},
@@ -50,8 +51,8 @@ var commands = []Command{
 }
 
 var features = []Feature{
-	{Name: "mail-read", Description: "Read mail and attachments", Commands: []string{"mail list", "mail get", "mail attachments"}},
-	{Name: "mail-manage", Description: "Read, draft, mark, archive, and delete mail", Commands: []string{"mail list", "mail get", "mail attachments", "mail draft", "mail mark-read", "mail archive", "mail delete"}},
+	{Name: "mail-read", Description: "Read, search, and inspect mail and attachments", Commands: []string{"mail list", "mail search", "mail get", "mail attachments"}},
+	{Name: "mail-manage", Description: "Read, search, draft, mark, archive, and delete mail", Commands: []string{"mail list", "mail search", "mail get", "mail attachments", "mail draft", "mail mark-read", "mail archive", "mail delete"}},
 	{Name: "mail-send", Description: "Send mail", Commands: []string{"mail send"}},
 	{Name: "calendar-read", Description: "Read calendar events", Commands: []string{"cal list"}},
 	{Name: "calendar", Description: "Read and manage calendar events", Commands: []string{"cal list", "cal create", "cal delete"}},

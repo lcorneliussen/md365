@@ -2,6 +2,9 @@ package graph
 
 import (
 	"encoding/json"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 )
 
@@ -61,6 +64,89 @@ func TestParseDriveItemSearchResponse(t *testing.T) {
 
 	if _, err := json.Marshal(hits); err != nil {
 		t.Fatalf("search hits should remain JSON serializable: %v", err)
+	}
+}
+
+func TestNewMessageSearchRequest(t *testing.T) {
+	request := newMessageSearchRequest("subject:budget", 25, 10, true)
+	query := request.Requests[0]
+	if query.Query.QueryString != "subject:budget" || query.From != 25 || query.Size != 10 {
+		t.Fatalf("unexpected message search query: %#v", query)
+	}
+	if !query.EnableTopResults {
+		t.Fatal("top results should be enabled")
+	}
+	if len(query.EntityTypes) != 1 || query.EntityTypes[0] != "message" {
+		t.Fatalf("entityTypes = %#v", query.EntityTypes)
+	}
+}
+
+func TestParseMessageSearchResponse(t *testing.T) {
+	data := []byte(`{"value":[{"hitsContainers":[{"moreResultsAvailable":true,"hits":[{"hitId":"message-1","rank":1,"summary":"matched attachment","resource":{"id":"message-1","subject":"Budget","receivedDateTime":"2026-10-01T10:00:00Z","from":{"emailAddress":{"name":"Ada","address":"ada@example.com"}}}}]}]}]}`)
+	hits, more, err := parseMessageSearchResponse(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !more || len(hits) != 1 {
+		t.Fatalf("hits = %d, more = %v", len(hits), more)
+	}
+	if hits[0].Resource.ID != "message-1" || hits[0].Resource.Subject != "Budget" {
+		t.Fatalf("unexpected hit: %#v", hits[0])
+	}
+}
+
+func TestSearchMessagesPagesAndStopsOnEmptyPage(t *testing.T) {
+	type observedRequest struct {
+		From  int
+		Size  int
+		Query string
+	}
+	var observed []observedRequest
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost || r.URL.Path != "/search/query" {
+			t.Fatalf("request = %s %s", r.Method, r.URL.Path)
+		}
+		var request searchRequest
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			t.Fatal(err)
+		}
+		query := request.Requests[0]
+		observed = append(observed, observedRequest{From: query.From, Size: query.Size, Query: query.Query.QueryString})
+
+		w.Header().Set("Content-Type", "application/json")
+		if query.From == 0 {
+			fmt.Fprint(w, `{"value":[{"hitsContainers":[{"moreResultsAvailable":true,"hits":[`)
+			for i := 0; i < 25; i++ {
+				if i > 0 {
+					fmt.Fprint(w, ",")
+				}
+				fmt.Fprintf(w, `{"hitId":"message-%d","rank":%d,"resource":{"id":"message-%d"}}`, i, i+1, i)
+			}
+			fmt.Fprint(w, `]}]}]}`)
+			return
+		}
+		fmt.Fprint(w, `{"value":[{"hitsContainers":[{"moreResultsAvailable":true,"hits":[]}]}]}`)
+	}))
+	defer server.Close()
+
+	hits, err := NewClient("token").searchMessages(server.URL+"/search/query", `subject:"Q4 plan"`, 30, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(hits) != 25 {
+		t.Fatalf("hits = %d, want 25", len(hits))
+	}
+	want := []observedRequest{
+		{From: 0, Size: 25, Query: `subject:"Q4 plan"`},
+		{From: 25, Size: 5, Query: `subject:"Q4 plan"`},
+	}
+	if len(observed) != len(want) {
+		t.Fatalf("requests = %#v, want %#v", observed, want)
+	}
+	for i := range want {
+		if observed[i] != want[i] {
+			t.Fatalf("request[%d] = %#v, want %#v", i, observed[i], want[i])
+		}
 	}
 }
 
