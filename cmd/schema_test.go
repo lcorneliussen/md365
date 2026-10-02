@@ -3,6 +3,7 @@ package cmd
 import (
 	"encoding/json"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/lcorneliussen/md365/internal/commandmeta"
@@ -77,6 +78,51 @@ func TestSchemaPublishesArgumentsPermissionsAndPolicy(t *testing.T) {
 	}
 	if !required["account"] || !required["id"] {
 		t.Fatalf("required flags = %#v", required)
+	}
+
+	authAdd := byPath["md365 auth add"]
+	for _, flag := range authAdd.Flags {
+		if flag.Name == "name" {
+			if flag.Required || !reflect.DeepEqual(flag.RequiredUnless, []string{"interactive"}) {
+				t.Fatalf("auth add name requirement = %#v", flag)
+			}
+			if flag.Default != "" {
+				t.Fatalf("auth add name default = %q, want explicit empty string", flag.Default)
+			}
+		}
+	}
+
+	contacts := byPath["md365 contacts search"]
+	if len(contacts.DelegatedPermissions) != 0 || len(contacts.ConditionalPermissions) != 1 || contacts.ConditionalPermissions[0].WhenFlag != "no-cache" {
+		t.Fatalf("contacts permissions = %#v, conditional = %#v", contacts.DelegatedPermissions, contacts.ConditionalPermissions)
+	}
+
+	for _, command := range document.Commands {
+		for _, flag := range command.Flags {
+			if strings.Contains(strings.ToLower(flag.Usage), "(required)") && !flag.Required && len(flag.RequiredUnless) == 0 {
+				t.Fatalf("%s --%s has required help text but no explicit requirement metadata", command.Path, flag.Name)
+			}
+		}
+	}
+}
+
+func TestSchemaPublishesCompleteObservableEffects(t *testing.T) {
+	document, err := buildSchema(rootCmd)
+	if err != nil {
+		t.Fatal(err)
+	}
+	byPath := map[string]schemaCommand{}
+	for _, command := range document.Commands {
+		byPath[command.Path] = command
+	}
+	for path, want := range map[string][]string{
+		"md365 auth add":   {"authentication", "browser", "keyring_write", "local_write"},
+		"md365 cal create": {"external_communication", "local_write", "microsoft_graph_write"},
+		"md365 cal delete": {"local_read", "local_write", "microsoft_graph_write"},
+	} {
+		if !reflect.DeepEqual(byPath[path].Effects, want) {
+			t.Fatalf("%s effects = %#v, want %#v", path, byPath[path].Effects, want)
+		}
 	}
 }
 

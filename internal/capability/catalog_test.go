@@ -36,6 +36,30 @@ func TestAllowedAcceptsReadWriteForRead(t *testing.T) {
 	}
 }
 
+func TestCacheFirstCommandsExposeConditionalGraphScopes(t *testing.T) {
+	for _, name := range []string{"cal list", "contacts search"} {
+		command, ok := findCommand(name)
+		if !ok {
+			t.Fatalf("%s command missing", name)
+		}
+		if len(command.Scopes) != 0 || len(command.ConditionalScopes) != 1 || command.ConditionalScopes[0].WhenFlag != "no-cache" {
+			t.Fatalf("%s scopes = %#v, conditional = %#v", name, command.Scopes, command.ConditionalScopes)
+		}
+		if !Allowed(command, nil) {
+			t.Fatalf("cache-backed %s should be allowed without Graph scopes", name)
+		}
+	}
+
+	plan, err := Resolve([]string{"cal list", "contacts search"}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"Calendars.Read", "Contacts.Read", "User.Read", "offline_access"}
+	if !reflect.DeepEqual(plan.Scopes, want) {
+		t.Fatalf("planned scopes = %#v, want %#v", plan.Scopes, want)
+	}
+}
+
 func TestResolveRejectsUnknownSelector(t *testing.T) {
 	if _, err := Resolve([]string{"teams frobnicate"}, nil); err == nil {
 		t.Fatal("expected error")

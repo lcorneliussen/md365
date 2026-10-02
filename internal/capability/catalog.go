@@ -8,9 +8,15 @@ import (
 
 // Command describes the delegated Microsoft Graph scopes required by a CLI command.
 type Command struct {
-	Name        string   `json:"name"`
-	Description string   `json:"description"`
-	Scopes      []string `json:"scopes"`
+	Name              string              `json:"name"`
+	Description       string              `json:"description"`
+	Scopes            []string            `json:"scopes"`
+	ConditionalScopes []ConditionalScopes `json:"conditional_scopes,omitempty"`
+}
+
+type ConditionalScopes struct {
+	WhenFlag string   `json:"when_flag"`
+	Scopes   []string `json:"scopes"`
 }
 
 // Feature is a convenient bundle of related commands.
@@ -37,10 +43,10 @@ var commands = []Command{
 	{Name: "mail delete", Description: "Move messages to Deleted Items", Scopes: []string{"Mail.ReadWrite"}},
 	{Name: "mail draft", Description: "Create message drafts", Scopes: []string{"Mail.ReadWrite"}},
 	{Name: "mail send", Description: "Send messages", Scopes: []string{"Mail.Send"}},
-	{Name: "cal list", Description: "List calendar events", Scopes: []string{"Calendars.Read"}},
+	{Name: "cal list", Description: "List calendar events", ConditionalScopes: []ConditionalScopes{{WhenFlag: "no-cache", Scopes: []string{"Calendars.Read"}}}},
 	{Name: "cal create", Description: "Create calendar events", Scopes: []string{"Calendars.ReadWrite"}},
 	{Name: "cal delete", Description: "Delete calendar events", Scopes: []string{"Calendars.ReadWrite"}},
-	{Name: "contacts search", Description: "Search contacts", Scopes: []string{"Contacts.Read"}},
+	{Name: "contacts search", Description: "Search contacts", ConditionalScopes: []ConditionalScopes{{WhenFlag: "no-cache", Scopes: []string{"Contacts.Read"}}}},
 	{Name: "teams list", Description: "List joined Microsoft Teams teams", Scopes: []string{"Team.ReadBasic.All"}},
 	{Name: "teams channels", Description: "List channels in a team", Scopes: []string{"Channel.ReadBasic.All"}},
 	{Name: "teams files", Description: "Browse a channel's SharePoint files", Scopes: []string{"Files.Read.All"}},
@@ -146,6 +152,9 @@ func Resolve(selectors, featureNames []string) (Plan, error) {
 	scopes := []string{"offline_access", "User.Read"}
 	for _, command := range plan.Commands {
 		scopes = append(scopes, command.Scopes...)
+		for _, conditional := range command.ConditionalScopes {
+			scopes = append(scopes, conditional.Scopes...)
+		}
 	}
 	plan.Scopes = MinimalScopes(scopes)
 	return plan, nil

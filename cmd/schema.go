@@ -23,18 +23,19 @@ type schemaDocument struct {
 }
 
 type schemaCommand struct {
-	Path                 string                 `json:"path"`
-	Use                  string                 `json:"use"`
-	Short                string                 `json:"short,omitempty"`
-	Aliases              []string               `json:"aliases,omitempty"`
-	Arguments            []schemaArgument       `json:"arguments,omitempty"`
-	Flags                []schemaFlag           `json:"flags,omitempty"`
-	Subcommands          []string               `json:"subcommands,omitempty"`
-	DelegatedPermissions []string               `json:"delegated_permissions,omitempty"`
-	FeatureBundles       []string               `json:"feature_bundles,omitempty"`
-	Mutability           commandmeta.Mutability `json:"mutability,omitempty"`
-	CanPrompt            bool                   `json:"can_prompt"`
-	Effects              []string               `json:"effects,omitempty"`
+	Path                   string                         `json:"path"`
+	Use                    string                         `json:"use"`
+	Short                  string                         `json:"short,omitempty"`
+	Aliases                []string                       `json:"aliases,omitempty"`
+	Arguments              []schemaArgument               `json:"arguments,omitempty"`
+	Flags                  []schemaFlag                   `json:"flags,omitempty"`
+	Subcommands            []string                       `json:"subcommands,omitempty"`
+	DelegatedPermissions   []string                       `json:"delegated_permissions,omitempty"`
+	ConditionalPermissions []capability.ConditionalScopes `json:"conditional_delegated_permissions,omitempty"`
+	FeatureBundles         []string                       `json:"feature_bundles,omitempty"`
+	Mutability             commandmeta.Mutability         `json:"mutability,omitempty"`
+	CanPrompt              bool                           `json:"can_prompt"`
+	Effects                []string                       `json:"effects,omitempty"`
 }
 
 type schemaArgument struct {
@@ -44,13 +45,14 @@ type schemaArgument struct {
 }
 
 type schemaFlag struct {
-	Name      string `json:"name"`
-	Shorthand string `json:"shorthand,omitempty"`
-	Type      string `json:"type"`
-	Usage     string `json:"usage,omitempty"`
-	Default   string `json:"default,omitempty"`
-	Required  bool   `json:"required"`
-	Inherited bool   `json:"inherited,omitempty"`
+	Name           string   `json:"name"`
+	Shorthand      string   `json:"shorthand,omitempty"`
+	Type           string   `json:"type"`
+	Usage          string   `json:"usage,omitempty"`
+	Default        string   `json:"default"`
+	Required       bool     `json:"required"`
+	RequiredUnless []string `json:"required_unless,omitempty"`
+	Inherited      bool     `json:"inherited,omitempty"`
 }
 
 type schemaOutputMode struct {
@@ -157,6 +159,7 @@ func schemaEntry(command *cobra.Command) (schemaCommand, error) {
 	if graphCommand, ok := capability.CommandByName(shortPath); ok {
 		entry.DelegatedPermissions = append([]string(nil), graphCommand.Scopes...)
 		sort.Strings(entry.DelegatedPermissions)
+		entry.ConditionalPermissions = append([]capability.ConditionalScopes(nil), graphCommand.ConditionalScopes...)
 		entry.FeatureBundles = capability.FeaturesForCommand(shortPath)
 	}
 	if policy, ok := commandmeta.Lookup(shortPath); ok {
@@ -164,6 +167,11 @@ func schemaEntry(command *cobra.Command) (schemaCommand, error) {
 		entry.CanPrompt = policy.CanPrompt
 		entry.Effects = append([]string(nil), policy.Effects...)
 		sort.Strings(entry.Effects)
+		if hasMicrosoftGraphEffect(entry.Effects) {
+			if _, ok := capability.CommandByName(shortPath); !ok {
+				return schemaCommand{}, fmt.Errorf("Microsoft Graph command %q has no capability metadata", entry.Path)
+			}
+		}
 	} else if command.Runnable() && !isFrameworkCommand(shortPath) {
 		return schemaCommand{}, fmt.Errorf("command %q has no execution policy", entry.Path)
 	}
@@ -179,11 +187,13 @@ func schemaFlags(command *cobra.Command) []schemaFlag {
 				return
 			}
 			seen[flag.Name] = true
+			requirement, _ := commandmeta.Requirement(command.CommandPath(), flag.Name)
 			result = append(result, schemaFlag{
 				Name: flag.Name, Shorthand: flag.Shorthand, Type: flag.Value.Type(),
 				Usage: flag.Usage, Default: flag.DefValue,
-				Required:  strings.Contains(strings.ToLower(flag.Usage), "(required)"),
-				Inherited: inherited,
+				Required:       requirement.Required && len(requirement.Unless) == 0,
+				RequiredUnless: append([]string(nil), requirement.Unless...),
+				Inherited:      inherited,
 			})
 		})
 	}
@@ -191,6 +201,15 @@ func schemaFlags(command *cobra.Command) []schemaFlag {
 	add(command.NonInheritedFlags(), false)
 	sort.Slice(result, func(i, j int) bool { return result[i].Name < result[j].Name })
 	return result
+}
+
+func hasMicrosoftGraphEffect(effects []string) bool {
+	for _, effect := range effects {
+		if strings.HasPrefix(effect, "microsoft_graph_") || effect == "microsoft_search" {
+			return true
+		}
+	}
+	return false
 }
 
 func parseSchemaArguments(use string) []schemaArgument {
