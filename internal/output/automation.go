@@ -63,6 +63,9 @@ func collectionCount(data any) (int, bool) {
 }
 
 func projectFields(data any, fields []string) (any, error) {
+	if err := validateProjectionShape(reflect.TypeOf(data), fields); err != nil {
+		return nil, err
+	}
 	var normalized any
 	encoded, err := json.Marshal(data)
 	if err != nil {
@@ -92,6 +95,63 @@ func projectFields(data any, fields []string) (any, error) {
 	default:
 		return nil, apierr.Usage("--select requires object or collection results")
 	}
+}
+
+func validateProjectionShape(dataType reflect.Type, fields []string) error {
+	for dataType != nil && (dataType.Kind() == reflect.Pointer || dataType.Kind() == reflect.Interface) {
+		dataType = dataType.Elem()
+	}
+	if dataType == nil {
+		return nil
+	}
+	if dataType.Kind() == reflect.Slice || dataType.Kind() == reflect.Array {
+		dataType = dataType.Elem()
+		for dataType.Kind() == reflect.Pointer {
+			dataType = dataType.Elem()
+		}
+	}
+	if dataType.Kind() != reflect.Struct {
+		return nil
+	}
+	for _, field := range fields {
+		if !typeHasJSONPath(dataType, strings.Split(field, ".")) {
+			return apierr.Usage(fmt.Sprintf("--select field %q is not declared by the response type", field))
+		}
+	}
+	return nil
+}
+
+func typeHasJSONPath(dataType reflect.Type, path []string) bool {
+	for dataType.Kind() == reflect.Pointer {
+		dataType = dataType.Elem()
+	}
+	if dataType.Kind() == reflect.Map {
+		return true
+	}
+	if dataType.Kind() != reflect.Struct || len(path) == 0 {
+		return false
+	}
+	for i := 0; i < dataType.NumField(); i++ {
+		field := dataType.Field(i)
+		if !field.IsExported() {
+			continue
+		}
+		name := field.Name
+		if tag := field.Tag.Get("json"); tag != "" {
+			name = strings.Split(tag, ",")[0]
+			if name == "-" {
+				continue
+			}
+		}
+		if name != path[0] {
+			continue
+		}
+		if len(path) == 1 {
+			return true
+		}
+		return typeHasJSONPath(field.Type, path[1:])
+	}
+	return false
 }
 
 func projectObject(value map[string]any, fields []string) (map[string]any, error) {

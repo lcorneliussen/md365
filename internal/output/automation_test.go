@@ -49,6 +49,39 @@ func TestProjectionRejectsAbsentFields(t *testing.T) {
 	}
 }
 
+func TestProjectionValidatesEmptyTypedCollection(t *testing.T) {
+	type message struct {
+		ID      string `json:"id"`
+		Subject string `json:"subject"`
+	}
+
+	var stdout bytes.Buffer
+	writer := New(Options{Format: FormatResultsOnly, Stdout: &stdout, Select: []string{"id"}})
+	if err := writer.OK([]message{}); err != nil {
+		t.Fatalf("declared selector on empty collection: %v", err)
+	}
+	if stdout.String() != "[]\n" {
+		t.Fatalf("results-only output = %q", stdout.String())
+	}
+
+	writer = New(Options{Format: FormatResultsOnly, Stdout: &bytes.Buffer{}, Select: []string{"invented"}})
+	err := writer.OK([]message{})
+	if apierr.As(err).Code != apierr.CodeUsage {
+		t.Fatalf("undeclared selector on empty collection = %v", err)
+	}
+}
+
+func TestResultsOnlyAlwaysEmitsJSON(t *testing.T) {
+	var stdout bytes.Buffer
+	writer := New(Options{Format: FormatResultsOnly, Stdout: &stdout})
+	if err := writer.OK("plain text"); err != nil {
+		t.Fatal(err)
+	}
+	if stdout.String() != "\"plain text\"\n" {
+		t.Fatalf("results-only string = %q", stdout.String())
+	}
+}
+
 func TestFailEmptyUsesStableError(t *testing.T) {
 	writer := New(Options{Format: FormatJSON, Stdout: &bytes.Buffer{}, FailEmpty: true})
 	err := writer.OK([]string{})

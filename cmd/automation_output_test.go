@@ -31,7 +31,7 @@ func TestAutomationOutputFlagValidation(t *testing.T) {
 
 	jsonFlag, quietFlag, resultsOnlyFlag, idsOnlyFlag, countFlag = false, false, true, false, false
 	selectFlag = "id,subject"
-	if err := validateOutputFlags(); err != nil || outputFormat() != output.FormatQuiet {
+	if err := validateOutputFlags(); err != nil || outputFormat() != output.FormatResultsOnly {
 		t.Fatalf("results-only with select = %v, format %v", err, outputFormat())
 	}
 

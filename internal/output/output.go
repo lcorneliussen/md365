@@ -17,6 +17,7 @@ const (
 	FormatHuman Format = iota
 	FormatJSON
 	FormatQuiet
+	FormatResultsOnly
 	FormatIDs
 	FormatCount
 )
@@ -137,6 +138,8 @@ func (w *Writer) OK(data any, opts ...ResponseOption) error {
 		return writeJSON(w.opts.Stdout, resp)
 	case FormatQuiet:
 		return writeQuiet(w.opts.Stdout, resp.Data)
+	case FormatResultsOnly:
+		return writeJSON(w.opts.Stdout, resp.Data)
 	case FormatIDs:
 		return writeIDs(w.opts.Stdout, resp.Data)
 	case FormatCount:

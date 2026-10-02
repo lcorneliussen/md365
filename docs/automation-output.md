@@ -7,8 +7,9 @@ with Microsoft 365 resources through Microsoft Graph.
 
 - `--json` returns the response envelope (`ok`, `data`, and optional
   `summary`, `meta`, and `breadcrumbs`).
-- `--results-only` returns only `data` as JSON. It is the explicit automation
-  spelling of the existing `--quiet` behavior; `--quiet` remains supported.
+- `--results-only` returns only `data` as valid JSON, regardless of its type.
+- `--quiet` retains its legacy compact behavior for backward compatibility;
+  string and string-list results are written as unquoted lines.
 - `--ids-only` writes one stable resource ID per line.
 - `--count` writes only the number of results.
 

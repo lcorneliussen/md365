@@ -137,7 +137,9 @@ func outputFormat() output.Format {
 	switch {
 	case jsonFlag:
 		return output.FormatJSON
-	case quietFlag || resultsOnlyFlag:
+	case resultsOnlyFlag:
+		return output.FormatResultsOnly
+	case quietFlag:
 		return output.FormatQuiet
 	case idsOnlyFlag:
 		return output.FormatIDs
