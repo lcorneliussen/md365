@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"fmt"
-	"os"
 	"strings"
 	"time"
 
@@ -77,6 +76,7 @@ var calListCmd = &cobra.Command{
 		return writeOK(events,
 			output.WithSummary(fmt.Sprintf("%d calendar events", len(events))),
 			output.WithMeta("source", sourceName(calNoCache)),
+			completeCollection(len(events)),
 		)
 	},
 }
@@ -86,22 +86,20 @@ var calCreateCmd = &cobra.Command{
 	Use:   "create",
 	Short: "Create calendar event",
 	Long:  `Create a new calendar event via Microsoft Graph API.`,
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		if calAccount == "" || calSubject == "" || calStart == "" || calEnd == "" {
-			cmd.Help()
-			os.Exit(1)
-			return
+			return usageError("--account, --subject, --start, and --end are required")
 		}
 
 		filePath, err := cal.Create(cfg, calAccount, calSubject, calStart, calEnd, calLocation, calBody, calAttendees, calForce)
 		if err != nil {
-			fatal(err)
+			return err
 		}
 		if writer.IsHuman() {
 			fmt.Fprintf(cmd.OutOrStdout(), "Event created: %s\n", filePath)
-			return
+			return nil
 		}
-		_ = writeOK(map[string]string{
+		return writeOK(map[string]string{
 			"account":   calAccount,
 			"file_path": filePath,
 		}, output.WithSummary("Event created"))
@@ -113,7 +111,7 @@ var calDeleteCmd = &cobra.Command{
 	Use:   "delete [file]",
 	Short: "Delete calendar event",
 	Long:  `Delete a calendar event via Microsoft Graph API.`,
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		// Check if file path is provided as argument
 		if len(args) > 0 {
 			calFile = args[0]
@@ -121,7 +119,7 @@ var calDeleteCmd = &cobra.Command{
 
 		filePath, err := cal.Delete(cfg, calAccount, calID, calFile)
 		if err != nil {
-			fatal(err)
+			return err
 		}
 		if writer.IsHuman() {
 			if filePath != "" {
@@ -129,9 +127,9 @@ var calDeleteCmd = &cobra.Command{
 			} else {
 				fmt.Fprintln(cmd.OutOrStdout(), "Event deleted (local file not found)")
 			}
-			return
+			return nil
 		}
-		_ = writeOK(map[string]string{
+		return writeOK(map[string]string{
 			"account":   calAccount,
 			"id":        calID,
 			"file_path": filePath,

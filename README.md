@@ -168,6 +168,8 @@ Most commands support structured output:
 md365 cal list --account work --json
 md365 contacts search doe --ids-only
 md365 mail list --account work --count
+md365 mail search "quarterly close" --account work --results-only --select id,subject,from
+md365 files search "annual report" --account work --json --fail-empty
 ```
 
 `md365 schema --json` is the authoritative automation contract. It describes
@@ -197,7 +199,12 @@ explicit. See [`docs/content-safety.md`](docs/content-safety.md).
 
 JSON success responses use a stable envelope with `ok`, `data`, optional
 `summary`, `meta`, and `breadcrumbs`. Errors use `ok: false`, `error`, `code`,
-and optional `hint`.
+optional `hint`, and `http_status` for Microsoft Graph responses. Collection
+envelopes include `count` and `has_more`; complete local collections also
+include `total`. Use `--results-only` to unwrap `data`, `--select` to project
+fields, and `--fail-empty` to make an empty result exit with status 11. The
+full output and exit-code contract is documented in
+[`docs/automation-output.md`](docs/automation-output.md).
 
 ## Cross-Tenant Guard
 

@@ -56,13 +56,15 @@ Microsoft personal mailbox search, use mail list --search instead.`,
 		if strings.TrimSpace(args[0]) == "" {
 			return usageError("search query is required")
 		}
-		if mailSearchLimit <= 0 {
-			return usageError("--limit must be greater than zero")
-		}
-		results, err := mail.Search(cfg, mailAccount, strings.TrimSpace(args[0]), mailSearchLimit, mailTopResults)
+		requestLimit, err := lookaheadLimit(mailSearchLimit)
 		if err != nil {
 			return err
 		}
+		results, err := mail.Search(cfg, mailAccount, strings.TrimSpace(args[0]), requestLimit, mailTopResults)
+		if err != nil {
+			return err
+		}
+		results, page := collectionPage(results, mailSearchLimit)
 		if writer.IsHuman() {
 			printMessageSearchResults(cmd, results)
 			return nil
@@ -71,6 +73,7 @@ Microsoft personal mailbox search, use mail list --search instead.`,
 			output.WithSummary(fmt.Sprintf("%d message search results", len(results))),
 			output.WithMeta("source", "microsoft_search"),
 			output.WithMeta("sort", messageSearchSort(mailTopResults)),
+			page,
 		)
 	},
 }
@@ -84,6 +87,10 @@ var mailListCmd = &cobra.Command{
 		if mailAccount == "" {
 			return usageError("--account is required")
 		}
+		requestLimit, err := lookaheadLimit(mailLimit)
+		if err != nil {
+			return err
+		}
 
 		messages, err := mail.List(cfg, mailAccount, mail.ListOptions{
 			Search:   mailSearch,
@@ -92,11 +99,12 @@ var mailListCmd = &cobra.Command{
 			Until:    mailUntil,
 			Unread:   mailUnread,
 			Folder:   mailFolder,
-			Limit:    mailLimit,
+			Limit:    requestLimit,
 		})
 		if err != nil {
 			return err
 		}
+		messages, page := collectionPage(messages, mailLimit)
 		if writer.IsHuman() {
 			printMessages(cmd, messages)
 			return nil
@@ -104,6 +112,7 @@ var mailListCmd = &cobra.Command{
 		return writeOK(messages,
 			output.WithSummary(fmt.Sprintf("%d messages", len(messages))),
 			output.WithMeta("source", "graph"),
+			page,
 		)
 	},
 }
@@ -160,6 +169,7 @@ var mailAttachmentsCmd = &cobra.Command{
 				Command:     fmt.Sprintf("md365 mail get --account %s --id %s --json", mailAccount, mailID),
 				Description: "Read the message this attachment list belongs to",
 			}),
+			completeCollection(len(attachments)),
 		)
 	},
 }

@@ -13,7 +13,7 @@ import (
 	"github.com/spf13/pflag"
 )
 
-const commandSchemaVersion = "1.0.0"
+const commandSchemaVersion = "1.1.0"
 
 type schemaDocument struct {
 	SchemaVersion string             `json:"schema_version"`
@@ -102,6 +102,7 @@ func buildSchema(root *cobra.Command) (schemaDocument, error) {
 			{Name: "human", Description: "Human-readable output (default)"},
 			{Name: "json", Flag: "--json", Description: "Stable JSON response envelope"},
 			{Name: "quiet", Flag: "--quiet", Description: "Result data only"},
+			{Name: "results_only", Flag: "--results-only", Description: "Result data without the response envelope"},
 			{Name: "ids", Flag: "--ids-only", Description: "Result IDs, one per line"},
 			{Name: "count", Flag: "--count", Description: "Result count only"},
 		},
@@ -109,9 +110,16 @@ func buildSchema(root *cobra.Command) (schemaDocument, error) {
 			{Code: "ok", Status: 0},
 			{Code: "usage", Status: 1},
 			{Code: "unknown", Status: 1},
+			{Code: "not_found", Status: 2},
 			{Code: "auth", Status: 3},
+			{Code: "forbidden", Status: 4},
+			{Code: "rate_limit", Status: 5},
+			{Code: "network", Status: 6},
 			{Code: "graph", Status: 7},
 			{Code: "policy_denied", Status: 8},
+			{Code: "conflict", Status: 9},
+			{Code: "retryable", Status: 10},
+			{Code: "empty_result", Status: 11},
 		},
 	}
 

@@ -41,6 +41,7 @@ var contactsSearchCmd = &cobra.Command{
 		return writeOK(results,
 			output.WithSummary(fmt.Sprintf("%d contacts", len(results))),
 			output.WithMeta("source", sourceName(contactsNoCache)),
+			completeCollection(len(results)),
 		)
 	},
 }
