@@ -220,11 +220,8 @@ func messageInfoFromGraph(account string, msg graph.Message, includeBody bool) M
 
 // Send sends an email
 func Send(cfg *config.Config, account, to, subject, body string, force bool) error {
-	// Check cross-tenant unless force is enabled
-	if !force {
-		if err := cfg.CheckCrossTenant(account, []string{to}); err != nil {
-			return err
-		}
+	if err := ValidateWrite(cfg, account, to, force); err != nil {
+		return err
 	}
 
 	// Get access token
@@ -244,10 +241,8 @@ func Send(cfg *config.Config, account, to, subject, body string, force bool) err
 
 // Draft creates an email draft without sending it.
 func Draft(cfg *config.Config, account, to, subject, body string, force bool) (*MessageInfo, error) {
-	if !force {
-		if err := cfg.CheckCrossTenant(account, []string{to}); err != nil {
-			return nil, err
-		}
+	if err := ValidateWrite(cfg, account, to, force); err != nil {
+		return nil, err
 	}
 
 	token, err := auth.GetAccessToken(cfg, account)
@@ -261,6 +256,18 @@ func Draft(cfg *config.Config, account, to, subject, body string, force bool) (*
 	}
 	result := messageInfoFromGraph(account, *created, true)
 	return &result, nil
+}
+
+// ValidateWrite checks account and cross-tenant policy without acquiring a
+// token or issuing a Microsoft Graph request.
+func ValidateWrite(cfg *config.Config, account, to string, force bool) error {
+	if _, err := cfg.GetAccount(account); err != nil {
+		return err
+	}
+	if !force {
+		return cfg.CheckCrossTenant(account, []string{to})
+	}
+	return nil
 }
 
 // MarkRead marks messages as read

@@ -35,6 +35,8 @@ type schemaCommand struct {
 	FeatureBundles         []string                       `json:"feature_bundles,omitempty"`
 	Mutability             commandmeta.Mutability         `json:"mutability,omitempty"`
 	CanPrompt              bool                           `json:"can_prompt"`
+	Prompting              *commandmeta.Prompting         `json:"prompting,omitempty"`
+	DryRunSupported        bool                           `json:"dry_run_supported"`
 	Effects                []string                       `json:"effects,omitempty"`
 	OutputModes            []string                       `json:"output_modes,omitempty"`
 	Constraints            []commandmeta.Constraint       `json:"constraints,omitempty"`
@@ -109,6 +111,7 @@ func buildSchema(root *cobra.Command) (schemaDocument, error) {
 			{Code: "unknown", Status: 1},
 			{Code: "auth", Status: 3},
 			{Code: "graph", Status: 7},
+			{Code: "policy_denied", Status: 8},
 		},
 	}
 
@@ -165,6 +168,11 @@ func schemaEntry(command *cobra.Command) (schemaCommand, error) {
 	if policy, ok := commandmeta.Lookup(shortPath); ok {
 		entry.Mutability = policy.Mutability
 		entry.CanPrompt = policy.CanPrompt
+		if policy.CanPrompt {
+			prompting := policy.Prompting
+			entry.Prompting = &prompting
+		}
+		entry.DryRunSupported = policy.DryRunSupported
 		entry.Effects = append([]string(nil), policy.Effects...)
 		sort.Strings(entry.Effects)
 		entry.OutputModes = append([]string(nil), policy.OutputModes...)

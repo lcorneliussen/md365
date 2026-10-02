@@ -13,6 +13,7 @@ const (
 	CodeRateLimit = "rate_limit"
 	CodeNetwork   = "network"
 	CodeGraph     = "graph"
+	CodePolicy    = "policy_denied"
 	CodeUnknown   = "unknown"
 )
 
@@ -39,6 +40,10 @@ func Usage(message string) *Error {
 
 func UsageHint(message, hint string) *Error {
 	return &Error{Code: CodeUsage, Message: message, Hint: hint}
+}
+
+func Policy(message string) *Error {
+	return &Error{Code: CodePolicy, Message: message}
 }
 
 func Auth(account string) *Error {

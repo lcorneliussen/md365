@@ -19,6 +19,13 @@ Use `md365` for Microsoft 365 calendar, contact, mail, Teams, OneDrive, and Shar
 - Use `files search` for tenant-wide discovery across visible OneDrive and SharePoint content. A team's default drive is not the same as all of its libraries.
 - Writes always go through Microsoft Graph: calendar create/delete and mail send.
 - Cross-tenant guards use configured account domains. Do not bypass them with `--force` unless the user explicitly asks.
+- For read-only automation, pass `--read-only`; md365 rejects every command
+  whose command contract declares a write to Microsoft Graph or local state.
+- For unattended automation, pass `--no-input`; md365 fails before opening a
+  browser, showing a TUI, or waiting for Microsoft Entra authentication.
+- Before supported Outlook mail or calendar mutations, use `--dry-run --json`
+  to obtain a redacted Microsoft Graph operation preview. A dry run performs no
+  remote or local write and may be combined with `--read-only`.
 - md365 is a public native client. A Microsoft Entra application (client) ID is
   not a secret. Prefer an account-specific, single-tenant public-client app
   registration for organizational accounts and configure its Microsoft Entra
@@ -70,6 +77,7 @@ md365 mail search <query> --account <name> --json
 md365 mail search <query> --account <name> --top-results --json
 md365 mail get --account <name> --id <message-id> --json
 md365 mail attachments --account <name> --id <message-id> --json
+md365 mail send --account <name> --to <address> --subject <subject> --body <body> --dry-run --json
 md365 teams list --account <name> --json
 md365 teams channels --account <name> --team-id <team-id> --json
 md365 teams files --account <name> --team-id <team-id> --channel-id <channel-id> --json

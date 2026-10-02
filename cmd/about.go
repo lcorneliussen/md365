@@ -51,6 +51,8 @@ var aboutCmd = &cobra.Command{
 		fmt.Fprintln(out, "Writes:")
 		fmt.Fprintln(out, "  Creating/deleting calendar events and sending mail always go through Graph.")
 		fmt.Fprintln(out, "  Cross-tenant recipient checks use configured account domains before writes.")
+		fmt.Fprintln(out, "  Use --read-only to block writes and --dry-run to preview supported Outlook mutations.")
+		fmt.Fprintln(out, "  Use --no-input for unattended execution without browser, TUI, or authentication waits.")
 		fmt.Fprintln(out)
 		fmt.Fprintln(out, "Storage:")
 		fmt.Fprintln(out, "  Config: ~/.config/md365/config.yaml")
@@ -105,6 +107,9 @@ func newAboutInfo() aboutInfo {
 			"Calendar create/delete always goes through Microsoft Graph.",
 			"Mail send always goes through Microsoft Graph.",
 			"Cross-tenant recipient checks use configured account domains before writes.",
+			"--read-only blocks commands that write Microsoft Graph or local synchronized state.",
+			"--dry-run previews supported Outlook mail/calendar mutations without writing.",
+			"--no-input prevents browser, TUI, and authentication waits.",
 		},
 		Storage: map[string]string{
 			"config": "~/.config/md365/config.yaml",

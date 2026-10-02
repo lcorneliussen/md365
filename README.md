@@ -92,6 +92,10 @@ md365 commands --json                   # Inspect command/flag surface
 md365 schema --json                     # Versioned command, permission, and safety contract
 md365 skill install                     # Install the md365 agent skill
 
+md365 mail list --account work --read-only
+md365 auth status --no-input --json
+md365 mail send --account work --to jane@example.com --subject "Hello" --body "..." --dry-run --json
+
 md365 sync                              # Sync all accounts
 md365 sync --account work               # Sync one account
 
@@ -170,6 +174,19 @@ aliases, positional arguments, flags/defaults, delegated Microsoft Graph
 permissions, feature bundles, read/write mutability, prompting behavior,
 per-command output modes, invocation constraints, and exit statuses. The compatibility policy is documented in
 [`docs/command-schema.md`](docs/command-schema.md).
+
+Global execution policies are enforced before configuration, authentication, or
+command execution:
+
+- `--read-only` blocks every command catalogued as writing Microsoft Graph or
+  local synchronized state;
+- `--no-input` prevents browser, TUI, and Microsoft Entra authentication waits;
+- `--dry-run` validates supported Outlook mail and calendar mutations and emits
+  a redacted Graph operation preview without performing remote or local writes.
+
+`--read-only --dry-run` is valid because the preview does not mutate state.
+Unsupported dry runs fail closed with the stable `policy_denied` error code and
+exit status 8.
 
 JSON success responses use a stable envelope with `ok`, `data`, optional
 `summary`, `meta`, and `breadcrumbs`. Errors use `ok: false`, `error`, `code`,

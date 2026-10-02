@@ -76,8 +76,11 @@ func TestSchemaPublishesArgumentsPermissionsAndPolicy(t *testing.T) {
 	}
 
 	send := byPath["md365 mail send"]
-	if send.Mutability != commandmeta.Write || !reflect.DeepEqual(send.DelegatedPermissions, []string{"Mail.Send"}) {
+	if send.Mutability != commandmeta.Write || !send.DryRunSupported || !reflect.DeepEqual(send.DelegatedPermissions, []string{"Mail.Send"}) {
 		t.Fatalf("mail send contract = %#v", send)
+	}
+	if send.Prompting != nil {
+		t.Fatalf("mail send prompting = %#v", send.Prompting)
 	}
 
 	get := byPath["md365 mail get"]
@@ -92,6 +95,9 @@ func TestSchemaPublishesArgumentsPermissionsAndPolicy(t *testing.T) {
 	}
 
 	authAdd := byPath["md365 auth add"]
+	if authAdd.Prompting == nil || authAdd.Prompting.Mode != "conditional" || !reflect.DeepEqual(authAdd.Prompting.WhenAnyFlags, []string{"interactive", "login"}) {
+		t.Fatalf("auth add prompting = %#v", authAdd.Prompting)
+	}
 	for _, flag := range authAdd.Flags {
 		if flag.Name == "name" {
 			if flag.Required || !reflect.DeepEqual(flag.RequiredUnless, []string{"interactive"}) {
@@ -240,6 +246,7 @@ func TestSchemaPublishesOnlyEmittedExitStatuses(t *testing.T) {
 		{Code: "unknown", Status: 1},
 		{Code: "auth", Status: 3},
 		{Code: "graph", Status: 7},
+		{Code: "policy_denied", Status: 8},
 	}
 	if !reflect.DeepEqual(document.ExitStatuses, want) {
 		t.Fatalf("exit statuses = %#v, want %#v", document.ExitStatuses, want)
