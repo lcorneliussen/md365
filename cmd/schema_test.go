@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/lcorneliussen/md365/internal/capability"
 	"github.com/lcorneliussen/md365/internal/commandmeta"
 )
 
@@ -64,6 +65,11 @@ func TestSchemaPublishesArgumentsPermissionsAndPolicy(t *testing.T) {
 		t.Fatalf("mail search policy = %#v", search)
 	}
 
+	archive := byPath["md365 mail archive"]
+	if !reflect.DeepEqual(archive.Arguments, []schemaArgument{{Name: "MESSAGE_ID", Required: false, Variadic: true}}) {
+		t.Fatalf("mail archive arguments = %#v", archive.Arguments)
+	}
+
 	send := byPath["md365 mail send"]
 	if send.Mutability != commandmeta.Write || !reflect.DeepEqual(send.DelegatedPermissions, []string{"Mail.Send"}) {
 		t.Fatalf("mail send contract = %#v", send)
@@ -103,6 +109,39 @@ func TestSchemaPublishesArgumentsPermissionsAndPolicy(t *testing.T) {
 				t.Fatalf("%s --%s has required help text but no explicit requirement metadata", command.Path, flag.Name)
 			}
 		}
+	}
+}
+
+func TestSchemaPublishesKnownAliases(t *testing.T) {
+	document, err := buildSchema(rootCmd)
+	if err != nil {
+		t.Fatal(err)
+	}
+	aliases := map[string][]string{}
+	for _, command := range document.Commands {
+		if len(command.Aliases) > 0 {
+			aliases[command.Path] = command.Aliases
+		}
+	}
+	want := map[string][]string{
+		"md365 onedrive list":        {"ls"},
+		"md365 sharepoint libraries": {"drives"},
+		"md365 sharepoint list":      {"ls"},
+		"md365 teams channels":       {"channel"},
+		"md365 teams list":           {"ls"},
+	}
+	if !reflect.DeepEqual(aliases, want) {
+		t.Fatalf("aliases = %#v, want %#v", aliases, want)
+	}
+}
+
+func TestFormatCommandPermissionsIncludesConditions(t *testing.T) {
+	command, ok := capability.CommandByName("contacts search")
+	if !ok {
+		t.Fatal("contacts search command missing")
+	}
+	if got, want := formatCommandPermissions(command), "--no-cache: Contacts.Read"; got != want {
+		t.Fatalf("permissions = %q, want %q", got, want)
 	}
 }
 
