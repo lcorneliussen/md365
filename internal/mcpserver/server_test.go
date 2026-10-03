@@ -160,6 +160,13 @@ func TestCalendarRangeUsesConfiguredTimezoneAndPreservesRFC3339Offset(t *testing
 	if to.Location() != berlin || to.Hour() != 23 || to.Minute() != 59 {
 		t.Fatalf("date-only end = %s, want end of day Europe/Berlin", to)
 	}
+	_, dstEnd, err := calendarRange("2026-10-25", "2026-10-25", berlin)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if dstEnd.Day() != 25 || dstEnd.Hour() != 23 || dstEnd.Minute() != 59 {
+		t.Fatalf("DST date-only end = %s, want local end of 2026-10-25", dstEnd)
+	}
 
 	offsetFrom, _, err := calendarRange("2026-10-01T00:00:00+02:00", "2026-10-02T00:00:00+02:00", berlin)
 	if err != nil {

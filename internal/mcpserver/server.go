@@ -476,7 +476,7 @@ func parseCalendarTime(value string, endOfDay bool, location *time.Location) (ti
 		return time.Time{}, fmt.Errorf("expected RFC3339 or YYYY-MM-DD")
 	}
 	if endOfDay {
-		parsed = parsed.Add(24*time.Hour - time.Nanosecond)
+		parsed = parsed.AddDate(0, 0, 1).Add(-time.Nanosecond)
 	}
 	return parsed, nil
 }
