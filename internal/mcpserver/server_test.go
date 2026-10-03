@@ -145,6 +145,32 @@ func TestToolRejectsUnknownAccountWithStableJSONError(t *testing.T) {
 	}
 }
 
+func TestCalendarRangeUsesConfiguredTimezoneAndPreservesRFC3339Offset(t *testing.T) {
+	berlin, err := time.LoadLocation("Europe/Berlin")
+	if err != nil {
+		t.Fatal(err)
+	}
+	from, to, err := calendarRange("2026-10-01", "2026-10-01", berlin)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if from.Location() != berlin || from.Hour() != 0 {
+		t.Fatalf("date-only start = %s, want midnight Europe/Berlin", from)
+	}
+	if to.Location() != berlin || to.Hour() != 23 || to.Minute() != 59 {
+		t.Fatalf("date-only end = %s, want end of day Europe/Berlin", to)
+	}
+
+	offsetFrom, _, err := calendarRange("2026-10-01T00:00:00+02:00", "2026-10-02T00:00:00+02:00", berlin)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, offset := offsetFrom.Zone()
+	if offset != 2*60*60 {
+		t.Fatalf("RFC3339 offset = %d, want 7200", offset)
+	}
+}
+
 func connectTestClient(t *testing.T, ctx context.Context, server *mcp.Server) *mcp.ClientSession {
 	t.Helper()
 	serverTransport, clientTransport := mcp.NewInMemoryTransports()

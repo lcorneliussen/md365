@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/lcorneliussen/md365/internal/auth"
@@ -72,10 +73,14 @@ func ListSiteDrive(cfg *config.Config, account, siteID, itemID, path string, lim
 }
 
 func ListDrive(cfg *config.Config, account, driveID, itemID, path string, limit int) ([]ItemInfo, error) {
+	return ListDriveContext(context.Background(), cfg, account, driveID, itemID, path, limit)
+}
+
+func ListDriveContext(ctx context.Context, cfg *config.Config, account, driveID, itemID, path string, limit int) ([]ItemInfo, error) {
 	if driveID == "" {
 		return nil, fmt.Errorf("--drive-id is required")
 	}
-	client, err := clientFor(cfg, account)
+	client, err := clientForContext(ctx, cfg, account)
 	if err != nil {
 		return nil, err
 	}
@@ -84,10 +89,14 @@ func ListDrive(cfg *config.Config, account, driveID, itemID, path string, limit 
 }
 
 func ListTeamLibraries(cfg *config.Config, account, teamID string, limit int) ([]LibraryInfo, error) {
+	return ListTeamLibrariesContext(context.Background(), cfg, account, teamID, limit)
+}
+
+func ListTeamLibrariesContext(ctx context.Context, cfg *config.Config, account, teamID string, limit int) ([]LibraryInfo, error) {
 	if teamID == "" {
 		return nil, fmt.Errorf("--team-id is required")
 	}
-	client, err := clientFor(cfg, account)
+	client, err := clientForContext(ctx, cfg, account)
 	if err != nil {
 		return nil, err
 	}
@@ -96,10 +105,14 @@ func ListTeamLibraries(cfg *config.Config, account, teamID string, limit int) ([
 }
 
 func ListSiteLibraries(cfg *config.Config, account, siteID string, limit int) ([]LibraryInfo, error) {
+	return ListSiteLibrariesContext(context.Background(), cfg, account, siteID, limit)
+}
+
+func ListSiteLibrariesContext(ctx context.Context, cfg *config.Config, account, siteID string, limit int) ([]LibraryInfo, error) {
 	if siteID == "" {
 		return nil, fmt.Errorf("--site-id is required")
 	}
-	client, err := clientFor(cfg, account)
+	client, err := clientForContext(ctx, cfg, account)
 	if err != nil {
 		return nil, err
 	}
@@ -108,10 +121,14 @@ func ListSiteLibraries(cfg *config.Config, account, siteID string, limit int) ([
 }
 
 func Search(cfg *config.Config, account, query string, limit int) ([]SearchResultInfo, error) {
+	return SearchContext(context.Background(), cfg, account, query, limit)
+}
+
+func SearchContext(ctx context.Context, cfg *config.Config, account, query string, limit int) ([]SearchResultInfo, error) {
 	if query == "" {
 		return nil, fmt.Errorf("search query is required")
 	}
-	client, err := clientFor(cfg, account)
+	client, err := clientForContext(ctx, cfg, account)
 	if err != nil {
 		return nil, err
 	}
@@ -157,14 +174,18 @@ func ListChannelFiles(cfg *config.Config, account, teamID, channelID, itemID str
 }
 
 func clientFor(cfg *config.Config, account string) (*graph.Client, error) {
+	return clientForContext(context.Background(), cfg, account)
+}
+
+func clientForContext(ctx context.Context, cfg *config.Config, account string) (*graph.Client, error) {
 	if account == "" {
 		return nil, fmt.Errorf("--account is required")
 	}
-	token, err := auth.GetAccessToken(cfg, account)
+	token, err := auth.GetAccessTokenContext(ctx, cfg, account)
 	if err != nil {
 		return nil, err
 	}
-	return graph.NewClient(token), nil
+	return graph.NewClientWithContext(ctx, token), nil
 }
 
 func convert(account string, items []graph.DriveItem) []ItemInfo {

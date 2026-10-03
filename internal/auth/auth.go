@@ -96,6 +96,15 @@ type AccountStatus struct {
 
 // GetAccessToken returns a valid access token for the account, refreshing if needed
 func GetAccessToken(cfg *config.Config, account string) (string, error) {
+	return GetAccessTokenContext(context.Background(), cfg, account)
+}
+
+// GetAccessTokenContext returns a valid token and cancels a required refresh
+// when ctx is done.
+func GetAccessTokenContext(ctx context.Context, cfg *config.Config, account string) (string, error) {
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
 	token, err := loadToken(account)
 	if err != nil {
 		return "", apierr.Auth(account)
@@ -104,7 +113,7 @@ func GetAccessToken(cfg *config.Config, account string) (string, error) {
 	// Check if token needs refresh
 	if time.Now().Add(tokenBuffer).Unix() >= token.ExpiresOn {
 		fmt.Fprintf(os.Stderr, "Refreshing token for account '%s'...\n", account)
-		if err := RefreshToken(cfg, account); err != nil {
+		if err := RefreshTokenContext(ctx, cfg, account); err != nil {
 			return "", fmt.Errorf("failed to refresh token: %w", err)
 		}
 		// Reload token after refresh
@@ -119,6 +128,11 @@ func GetAccessToken(cfg *config.Config, account string) (string, error) {
 
 // RefreshToken refreshes the access token for an account
 func RefreshToken(cfg *config.Config, account string) error {
+	return RefreshTokenContext(context.Background(), cfg, account)
+}
+
+// RefreshTokenContext refreshes an account token and honors cancellation.
+func RefreshTokenContext(ctx context.Context, cfg *config.Config, account string) error {
 	endpoints, err := endpointsFor(cfg, account)
 	if err != nil {
 		return err
@@ -138,7 +152,12 @@ func RefreshToken(cfg *config.Config, account string) error {
 		"grant_type":    {"refresh_token"},
 	}
 
-	resp, err := http.PostForm(endpoints.token, data)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoints.token, strings.NewReader(data.Encode()))
+	if err != nil {
+		return fmt.Errorf("failed to create token refresh request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("failed to refresh token: %w", err)
 	}

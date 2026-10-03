@@ -1,6 +1,7 @@
 package cal
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -28,6 +29,11 @@ type EventInfo struct {
 
 // List lists calendar events
 func List(cfg *config.Config, fromDate, toDate time.Time, search, account string, noCache bool) ([]EventInfo, error) {
+	return ListContext(context.Background(), cfg, fromDate, toDate, search, account, noCache)
+}
+
+// ListContext lists events and honors cancellation for live Microsoft Graph reads.
+func ListContext(ctx context.Context, cfg *config.Config, fromDate, toDate time.Time, search, account string, noCache bool) ([]EventInfo, error) {
 	// Determine which accounts to search
 	var accounts []string
 	if account != "" {
@@ -37,7 +43,7 @@ func List(cfg *config.Config, fromDate, toDate time.Time, search, account string
 	}
 
 	if noCache {
-		return listLive(cfg, fromDate, toDate, search, accounts)
+		return listLiveContext(ctx, cfg, fromDate, toDate, search, accounts)
 	}
 
 	// Collect events
@@ -123,15 +129,19 @@ func List(cfg *config.Config, fromDate, toDate time.Time, search, account string
 }
 
 func listLive(cfg *config.Config, fromDate, toDate time.Time, search string, accounts []string) ([]EventInfo, error) {
+	return listLiveContext(context.Background(), cfg, fromDate, toDate, search, accounts)
+}
+
+func listLiveContext(ctx context.Context, cfg *config.Config, fromDate, toDate time.Time, search string, accounts []string) ([]EventInfo, error) {
 	var events []EventInfo
 
 	for _, acc := range accounts {
-		token, err := auth.GetAccessToken(cfg, acc)
+		token, err := auth.GetAccessTokenContext(ctx, cfg, acc)
 		if err != nil {
 			return nil, err
 		}
 
-		client := graph.NewClient(token)
+		client := graph.NewClientWithContext(ctx, token)
 		graphEvents, err := client.GetCalendarView(fromDate, toDate)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get calendar view for '%s': %w", acc, err)

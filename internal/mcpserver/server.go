@@ -26,6 +26,7 @@ const ServerVersion = "1.0.0"
 type Options struct {
 	Backend  Backend
 	Accounts []string
+	Timezone string
 }
 
 type Definition struct {
@@ -80,6 +81,7 @@ type serverState struct {
 	backend  Backend
 	accounts map[string]bool
 	defs     map[string]Definition
+	location *time.Location
 }
 
 func New(opts Options) (*mcp.Server, error) {
@@ -90,7 +92,14 @@ func New(opts Options) (*mcp.Server, error) {
 	if err != nil {
 		return nil, err
 	}
-	state := &serverState{backend: opts.Backend, accounts: map[string]bool{}, defs: map[string]Definition{}}
+	location := time.UTC
+	if opts.Timezone != "" {
+		location, err = time.LoadLocation(opts.Timezone)
+		if err != nil {
+			return nil, fmt.Errorf("invalid md365 timezone %q: %w", opts.Timezone, err)
+		}
+	}
+	state := &serverState{backend: opts.Backend, accounts: map[string]bool{}, defs: map[string]Definition{}, location: location}
 	for _, account := range opts.Accounts {
 		state.accounts[account] = true
 	}
@@ -104,7 +113,7 @@ func New(opts Options) (*mcp.Server, error) {
 }
 
 func NewProduction(cfg *config.Config) (*mcp.Server, error) {
-	return New(Options{Backend: NewProductionBackend(cfg), Accounts: cfg.ListAccounts()})
+	return New(Options{Backend: NewProductionBackend(cfg), Accounts: cfg.ListAccounts(), Timezone: cfg.Timezone})
 }
 
 type UntrustedResource[T any] struct {
@@ -376,7 +385,7 @@ func (s *serverState) calendarList(ctx context.Context, _ *mcp.CallToolRequest, 
 	if err := s.validateAccount(input.Account); err != nil {
 		return fail[CollectionResult[cal.EventInfo]](err)
 	}
-	from, to, err := calendarRange(input.From, input.To)
+	from, to, err := calendarRange(input.From, input.To, s.location)
 	if err != nil {
 		return fail[CollectionResult[cal.EventInfo]](err)
 	}
@@ -432,19 +441,22 @@ func (s *serverState) channelsList(ctx context.Context, _ *mcp.CallToolRequest, 
 	return nil, CollectionResult[teams.ChannelInfo]{Data: data, Meta: meta}, nil
 }
 
-func calendarRange(fromValue, toValue string) (time.Time, time.Time, error) {
-	now := time.Now()
+func calendarRange(fromValue, toValue string, location *time.Location) (time.Time, time.Time, error) {
+	if location == nil {
+		location = time.UTC
+	}
+	now := time.Now().In(location)
 	from := now
 	to := now.AddDate(0, 0, 14)
 	var err error
 	if fromValue != "" {
-		from, err = parseCalendarTime(fromValue, false)
+		from, err = parseCalendarTime(fromValue, false, location)
 		if err != nil {
 			return time.Time{}, time.Time{}, apierr.Usage("invalid from: " + err.Error())
 		}
 	}
 	if toValue != "" {
-		to, err = parseCalendarTime(toValue, true)
+		to, err = parseCalendarTime(toValue, true, location)
 		if err != nil {
 			return time.Time{}, time.Time{}, apierr.Usage("invalid to: " + err.Error())
 		}
@@ -455,11 +467,11 @@ func calendarRange(fromValue, toValue string) (time.Time, time.Time, error) {
 	return from, to, nil
 }
 
-func parseCalendarTime(value string, endOfDay bool) (time.Time, error) {
+func parseCalendarTime(value string, endOfDay bool, location *time.Location) (time.Time, error) {
 	if parsed, err := time.Parse(time.RFC3339, value); err == nil {
 		return parsed, nil
 	}
-	parsed, err := time.Parse("2006-01-02", value)
+	parsed, err := time.ParseInLocation("2006-01-02", value, location)
 	if err != nil {
 		return time.Time{}, fmt.Errorf("expected RFC3339 or YYYY-MM-DD")
 	}
