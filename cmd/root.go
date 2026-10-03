@@ -329,6 +329,7 @@ func init() {
 	rootCmd.AddCommand(commandsCmd)
 	rootCmd.AddCommand(schemaCmd)
 	rootCmd.AddCommand(skillCmd)
+	rootCmd.AddCommand(mcpCmd)
 }
 
 // fatal prints an error and exits

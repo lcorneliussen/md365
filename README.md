@@ -91,6 +91,7 @@ md365 about                             # Explain the read model, cache, and acc
 md365 commands --json                   # Inspect command/flag surface
 md365 schema --json                     # Versioned command, permission, and safety contract
 md365 skill install                     # Install the md365 agent skill
+md365 --read-only --no-input mcp serve   # Typed read-only MCP server over stdio
 
 md365 mail list --account work --read-only
 md365 auth status --no-input --json
@@ -205,6 +206,25 @@ include `total`. Use `--results-only` to unwrap `data`, `--select` to project
 fields, and `--fail-empty` to make an empty result exit with status 11. The
 full output and exit-code contract is documented in
 [`docs/automation-output.md`](docs/automation-output.md).
+
+### MCP server
+
+`md365 mcp serve` provides eight typed, read-only tools for Exchange Online,
+Outlook calendar, Microsoft Teams, OneDrive, SharePoint, and Microsoft Search.
+It uses stdio, starts without an authentication prompt, and exposes neither a
+shell nor a generic Microsoft Graph request. Configure MCP hosts to launch it
+with both safety guards:
+
+```json
+{
+  "command": "md365",
+  "args": ["--read-only", "--no-input", "mcp", "serve"]
+}
+```
+
+Every remote Microsoft 365 result is wrapped as untrusted content with account
+and resource provenance. See [`docs/mcp.md`](docs/mcp.md) for the complete tool
+surface, delegated permissions, and host configuration.
 
 ## Cross-Tenant Guard
 

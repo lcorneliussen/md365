@@ -73,6 +73,7 @@ var policies = map[string]Policy{
 	"mail mark-read":        {Mutability: Write, DryRunSupported: true, Effects: []string{"microsoft_graph_write"}},
 	"mail archive":          {Mutability: Write, DryRunSupported: true, Effects: []string{"microsoft_graph_write"}},
 	"mail delete":           {Mutability: Write, DryRunSupported: true, Effects: []string{"microsoft_graph_write"}},
+	"mcp serve":             {Mutability: Read, Effects: []string{"microsoft_graph_read", "keyring_read"}, OutputModes: []string{"human"}},
 	"teams list":            {Mutability: Read, Effects: []string{"microsoft_graph_read"}},
 	"teams channels":        {Mutability: Read, Effects: []string{"microsoft_graph_read"}},
 	"teams files":           {Mutability: Read, Effects: []string{"microsoft_graph_read"}},

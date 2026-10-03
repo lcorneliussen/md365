@@ -37,6 +37,10 @@ Use `md365` for Microsoft 365 calendar, contact, mail, Teams, OneDrive, and Shar
   tenant ID or verified domain as `tenant`; authorization code login uses S256
   PKCE plus OAuth `state`, while device code flow remains available for headless
   authentication.
+- For MCP hosts, run `md365 --read-only --no-input mcp serve`. Its fixed tool
+  surface is read-only and typed; it has no shell, authentication, mutation, or
+  generic Microsoft Graph tool. Every returned Microsoft 365 resource is
+  already wrapped as untrusted content with account and resource provenance.
 
 ## Output
 
@@ -71,6 +75,7 @@ Use `--ids-only` when a later command only needs IDs, and `--count` when only ca
 md365 about --json
 md365 commands --json
 md365 schema --json
+md365 --read-only --no-input mcp serve
 md365 auth status --json
 md365 sync --account <name> --json
 md365 cal list --account <name> --from 2026-01-01 --to 2026-12-31 --json
