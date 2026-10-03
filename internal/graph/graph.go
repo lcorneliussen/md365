@@ -197,9 +197,17 @@ func (c *Client) GetCalendarView(startDate, endDate time.Time) ([]Event, error) 
 // GetCalendarViewLimit retrieves at most limit events and stops following
 // @odata.nextLink once the bound is reached. A zero limit is unbounded.
 func (c *Client) GetCalendarViewLimit(startDate, endDate time.Time, limit int) ([]Event, error) {
+	return c.GetCalendarViewFiltered(startDate, endDate, limit, 0, nil)
+}
+
+// GetCalendarViewFiltered follows calendar-view pages until it has limit
+// matching events. scanLimit bounds inspected events; exceeding it returns an
+// explicit error rather than an incorrectly complete partial result.
+func (c *Client) GetCalendarViewFiltered(startDate, endDate time.Time, limit, scanLimit int, include func(Event) bool) ([]Event, error) {
 	url := calendarViewURL(startDate, endDate)
 
 	var allEvents []Event
+	scanned := 0
 
 	for url != "" {
 		resp, err := c.doRequest("GET", url, nil)
@@ -218,22 +226,43 @@ func (c *Client) GetCalendarViewLimit(startDate, endDate time.Time, limit int) (
 		}
 
 		var complete bool
-		allEvents, complete = appendEventPage(allEvents, events, limit)
+		allEvents, scanned, complete, err = collectCalendarPage(allEvents, events, limit, scanLimit, scanned, include)
+		if err != nil {
+			return nil, err
+		}
 		if complete {
 			return allEvents, nil
 		}
 		url = odataResp.NextLink
+		if scanLimit > 0 && scanned >= scanLimit && url != "" {
+			return nil, calendarScanLimitError(scanLimit)
+		}
 	}
 
 	return allEvents, nil
 }
 
-func appendEventPage(allEvents, page []Event, limit int) ([]Event, bool) {
-	allEvents = append(allEvents, page...)
-	if limit > 0 && len(allEvents) >= limit {
-		return allEvents[:limit], true
+func collectCalendarPage(allEvents, page []Event, limit, scanLimit, scanned int, include func(Event) bool) ([]Event, int, bool, error) {
+	for _, event := range page {
+		if scanLimit > 0 && scanned >= scanLimit {
+			return nil, scanned, false, calendarScanLimitError(scanLimit)
+		}
+		scanned++
+		if include == nil || include(event) {
+			allEvents = append(allEvents, event)
+			if limit > 0 && len(allEvents) >= limit {
+				return allEvents, scanned, true, nil
+			}
+		}
 	}
-	return allEvents, false
+	return allEvents, scanned, false, nil
+}
+
+func calendarScanLimitError(limit int) error {
+	return apierr.UsageHint(
+		fmt.Sprintf("calendar query inspected more than %d events", limit),
+		"Narrow the calendar range or make the search more specific",
+	)
 }
 
 func calendarViewURL(startDate, endDate time.Time) string {

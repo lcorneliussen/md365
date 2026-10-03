@@ -63,7 +63,10 @@ Graph requests.
 
 Collection tools use bounded limits. `calendar_list` defaults to 100 events,
 accepts at most 1,000, stops following Outlook calendar-view pages when the
-requested bound is reached, and rejects ranges longer than 366 days.
+requested bound is reached, and rejects ranges longer than 366 days. Searches
+filter while paging so the bound applies to matching events. A query that must
+inspect more than 10,000 events fails explicitly and asks the caller to narrow
+the range instead of returning an incorrectly complete partial result.
 
 ## Content and tenant safety
 

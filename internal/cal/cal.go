@@ -142,6 +142,7 @@ func listLive(cfg *config.Config, fromDate, toDate time.Time, search string, acc
 }
 
 func listLiveContext(ctx context.Context, cfg *config.Config, fromDate, toDate time.Time, search string, accounts []string, limit int) ([]EventInfo, error) {
+	const maxScannedEvents = 10_000
 	var events []EventInfo
 
 	for _, acc := range accounts {
@@ -151,16 +152,20 @@ func listLiveContext(ctx context.Context, cfg *config.Config, fromDate, toDate t
 		}
 
 		client := graph.NewClientWithContext(ctx, token)
-		graphEvents, err := client.GetCalendarViewLimit(fromDate, toDate, remainingLimit(limit, len(events)))
+		graphEvents, err := client.GetCalendarViewFiltered(
+			fromDate,
+			toDate,
+			remainingLimit(limit, len(events)),
+			boundedScanLimit(limit, maxScannedEvents),
+			func(event graph.Event) bool {
+				return search == "" || strings.Contains(strings.ToLower(eventSearchText(event)), strings.ToLower(search))
+			},
+		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get calendar view for '%s': %w", acc, err)
 		}
 
 		for _, event := range graphEvents {
-			if search != "" && !strings.Contains(strings.ToLower(eventSearchText(event)), strings.ToLower(search)) {
-				continue
-			}
-
 			info, err := eventInfoFromGraph(acc, event)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "Warning: skipped event %s: %v\n", event.ID, err)
@@ -183,6 +188,13 @@ func remainingLimit(limit, current int) int {
 		return 0
 	}
 	return limit - current
+}
+
+func boundedScanLimit(limit, maximum int) int {
+	if limit <= 0 {
+		return 0
+	}
+	return maximum
 }
 
 func eventInfoFromGraph(account string, event graph.Event) (EventInfo, error) {
