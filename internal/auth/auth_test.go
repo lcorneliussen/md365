@@ -1,6 +1,8 @@
 package auth
 
 import (
+	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -52,6 +54,28 @@ func TestGenerateState(t *testing.T) {
 	if first == second {
 		t.Fatal("consecutive OAuth state values matched")
 	}
+}
+
+func TestRefreshLockSerializesAccountAndHonorsCancellation(t *testing.T) {
+	account := "refresh-lock-" + t.Name()
+	release, err := acquireRefreshLock(context.Background(), account)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, err := acquireRefreshLock(ctx, account); !errors.Is(err, context.Canceled) {
+		t.Fatalf("second acquisition error = %v, want context.Canceled", err)
+	}
+
+	// The account is available again after the first refresh finishes.
+	release()
+	releaseAgain, err := acquireRefreshLock(context.Background(), account)
+	if err != nil {
+		t.Fatal(err)
+	}
+	releaseAgain()
 }
 
 func TestAuthCodeCallbackHandler(t *testing.T) {

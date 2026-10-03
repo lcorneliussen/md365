@@ -1,6 +1,7 @@
 package mail
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"strings"
@@ -58,6 +59,11 @@ type SearchResultInfo struct {
 // Search discovers messages in the signed-in user's Exchange Online mailbox
 // through the Microsoft Search API.
 func Search(cfg *config.Config, account, query string, limit int, topResults bool) ([]SearchResultInfo, error) {
+	return SearchContext(context.Background(), cfg, account, query, limit, topResults)
+}
+
+// SearchContext searches Exchange Online and honors request cancellation.
+func SearchContext(ctx context.Context, cfg *config.Config, account, query string, limit int, topResults bool) ([]SearchResultInfo, error) {
 	if account == "" {
 		return nil, fmt.Errorf("--account is required")
 	}
@@ -65,11 +71,11 @@ func Search(cfg *config.Config, account, query string, limit int, topResults boo
 		return nil, fmt.Errorf("search query is required")
 	}
 
-	token, err := auth.GetAccessToken(cfg, account)
+	token, err := auth.GetAccessTokenContext(ctx, cfg, account)
 	if err != nil {
 		return nil, err
 	}
-	hits, err := graph.NewClient(token).SearchMessages(query, limit, topResults)
+	hits, err := graph.NewClientWithContext(ctx, token).SearchMessages(query, limit, topResults)
 	if err != nil {
 		return nil, err
 	}
@@ -132,16 +138,21 @@ func List(cfg *config.Config, account string, opts ListOptions) ([]MessageInfo, 
 
 // Get prints a single message as Markdown
 func Get(cfg *config.Config, account, id string) (*MessageInfo, error) {
+	return GetContext(context.Background(), cfg, account, id)
+}
+
+// GetContext reads one Exchange Online message and honors request cancellation.
+func GetContext(ctx context.Context, cfg *config.Config, account, id string) (*MessageInfo, error) {
 	if account == "" || id == "" {
 		return nil, fmt.Errorf("--account and --id are required")
 	}
 
-	token, err := auth.GetAccessToken(cfg, account)
+	token, err := auth.GetAccessTokenContext(ctx, cfg, account)
 	if err != nil {
 		return nil, err
 	}
 
-	client := graph.NewClient(token)
+	client := graph.NewClientWithContext(ctx, token)
 	msg, err := client.GetMessage(id)
 	if err != nil {
 		return nil, err

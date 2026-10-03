@@ -2,6 +2,7 @@ package graph
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -22,11 +23,21 @@ const (
 // Client represents a Microsoft Graph API client
 type Client struct {
 	Token string
+	ctx   context.Context
 }
 
 // NewClient creates a new Graph API client
 func NewClient(token string) *Client {
-	return &Client{Token: token}
+	return NewClientWithContext(context.Background(), token)
+}
+
+// NewClientWithContext creates a Graph client whose HTTP requests are canceled
+// when ctx is done.
+func NewClientWithContext(ctx context.Context, token string) *Client {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return &Client{Token: token, ctx: ctx}
 }
 
 // Event represents a calendar event
@@ -180,13 +191,23 @@ type ErrorResponse struct {
 
 // GetCalendarView retrieves calendar events in a date range
 func (c *Client) GetCalendarView(startDate, endDate time.Time) ([]Event, error) {
-	// Format dates in their current timezone (don't convert to UTC)
-	start := startDate.Format("2006-01-02T15:04:05")
-	end := endDate.Format("2006-01-02T15:04:05")
+	return c.GetCalendarViewLimit(startDate, endDate, 0)
+}
 
-	url := fmt.Sprintf("%s/me/calendarview?startDateTime=%s&endDateTime=%s", baseURL, start, end)
+// GetCalendarViewLimit retrieves at most limit events and stops following
+// @odata.nextLink once the bound is reached. A zero limit is unbounded.
+func (c *Client) GetCalendarViewLimit(startDate, endDate time.Time, limit int) ([]Event, error) {
+	return c.GetCalendarViewFiltered(startDate, endDate, limit, 0, nil)
+}
+
+// GetCalendarViewFiltered follows calendar-view pages until it has limit
+// matching events. scanLimit bounds inspected events; exceeding it returns an
+// explicit error rather than an incorrectly complete partial result.
+func (c *Client) GetCalendarViewFiltered(startDate, endDate time.Time, limit, scanLimit int, include func(Event) bool) ([]Event, error) {
+	url := calendarViewURL(startDate, endDate)
 
 	var allEvents []Event
+	scanned := 0
 
 	for url != "" {
 		resp, err := c.doRequest("GET", url, nil)
@@ -204,11 +225,51 @@ func (c *Client) GetCalendarView(startDate, endDate time.Time) ([]Event, error) 
 			return nil, fmt.Errorf("failed to parse events: %w", err)
 		}
 
-		allEvents = append(allEvents, events...)
+		var complete bool
+		allEvents, scanned, complete, err = collectCalendarPage(allEvents, events, limit, scanLimit, scanned, include)
+		if err != nil {
+			return nil, err
+		}
+		if complete {
+			return allEvents, nil
+		}
 		url = odataResp.NextLink
+		if scanLimit > 0 && scanned >= scanLimit && url != "" {
+			return nil, calendarScanLimitError(scanLimit)
+		}
 	}
 
 	return allEvents, nil
+}
+
+func collectCalendarPage(allEvents, page []Event, limit, scanLimit, scanned int, include func(Event) bool) ([]Event, int, bool, error) {
+	for _, event := range page {
+		if scanLimit > 0 && scanned >= scanLimit {
+			return nil, scanned, false, calendarScanLimitError(scanLimit)
+		}
+		scanned++
+		if include == nil || include(event) {
+			allEvents = append(allEvents, event)
+			if limit > 0 && len(allEvents) >= limit {
+				return allEvents, scanned, true, nil
+			}
+		}
+	}
+	return allEvents, scanned, false, nil
+}
+
+func calendarScanLimitError(limit int) error {
+	return apierr.UsageHint(
+		fmt.Sprintf("calendar query inspected more than %d events", limit),
+		"Narrow the calendar range or make the search more specific",
+	)
+}
+
+func calendarViewURL(startDate, endDate time.Time) string {
+	query := url.Values{}
+	query.Set("startDateTime", startDate.UTC().Format(time.RFC3339Nano))
+	query.Set("endDateTime", endDate.UTC().Format(time.RFC3339Nano))
+	return baseURL + "/me/calendarview?" + query.Encode()
 }
 
 // GetContactsDelta retrieves contacts using delta query
@@ -567,7 +628,7 @@ func (c *Client) doRequestHeaders(method, reqURL string, body []byte, headers ma
 		reqBody = bytes.NewReader(body)
 	}
 
-	req, err := http.NewRequest(method, reqURL, reqBody)
+	req, err := http.NewRequestWithContext(c.ctx, method, reqURL, reqBody)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}

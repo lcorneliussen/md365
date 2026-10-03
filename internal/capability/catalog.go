@@ -54,6 +54,7 @@ var commands = []Command{
 	{Name: "sharepoint list", Description: "Browse SharePoint document libraries", Scopes: []string{"Files.Read.All"}},
 	{Name: "sharepoint libraries", Description: "List SharePoint document libraries", Scopes: []string{"Files.Read.All"}},
 	{Name: "files search", Description: "Search OneDrive and SharePoint files", Scopes: []string{"Files.Read.All"}},
+	{Name: "mcp serve", Description: "Serve the fixed read-only Microsoft 365 MCP tool set", Scopes: []string{"Mail.Read", "Files.Read.All", "Calendars.Read", "Team.ReadBasic.All", "Channel.ReadBasic.All"}},
 	{Name: "sync", Description: "Sync calendars and contacts", Scopes: []string{"Calendars.Read", "Contacts.Read"}},
 }
 

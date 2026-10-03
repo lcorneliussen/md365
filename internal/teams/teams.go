@@ -1,6 +1,7 @@
 package teams
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/lcorneliussen/md365/internal/auth"
@@ -27,7 +28,11 @@ type ChannelInfo struct {
 }
 
 func List(cfg *config.Config, account string, limit int) ([]TeamInfo, error) {
-	client, err := clientFor(cfg, account)
+	return ListContext(context.Background(), cfg, account, limit)
+}
+
+func ListContext(ctx context.Context, cfg *config.Config, account string, limit int) ([]TeamInfo, error) {
+	client, err := clientForContext(ctx, cfg, account)
 	if err != nil {
 		return nil, err
 	}
@@ -46,10 +51,14 @@ func List(cfg *config.Config, account string, limit int) ([]TeamInfo, error) {
 }
 
 func ListChannels(cfg *config.Config, account, teamID string, limit int) ([]ChannelInfo, error) {
+	return ListChannelsContext(context.Background(), cfg, account, teamID, limit)
+}
+
+func ListChannelsContext(ctx context.Context, cfg *config.Config, account, teamID string, limit int) ([]ChannelInfo, error) {
 	if teamID == "" {
 		return nil, fmt.Errorf("--team-id is required")
 	}
-	client, err := clientFor(cfg, account)
+	client, err := clientForContext(ctx, cfg, account)
 	if err != nil {
 		return nil, err
 	}
@@ -69,12 +78,16 @@ func ListChannels(cfg *config.Config, account, teamID string, limit int) ([]Chan
 }
 
 func clientFor(cfg *config.Config, account string) (*graph.Client, error) {
+	return clientForContext(context.Background(), cfg, account)
+}
+
+func clientForContext(ctx context.Context, cfg *config.Config, account string) (*graph.Client, error) {
 	if account == "" {
 		return nil, fmt.Errorf("--account is required")
 	}
-	token, err := auth.GetAccessToken(cfg, account)
+	token, err := auth.GetAccessTokenContext(ctx, cfg, account)
 	if err != nil {
 		return nil, err
 	}
-	return graph.NewClient(token), nil
+	return graph.NewClientWithContext(ctx, token), nil
 }
