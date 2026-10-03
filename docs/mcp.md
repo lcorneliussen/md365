@@ -61,6 +61,10 @@ The server has no tools for Outlook mail send/draft operations, calendar
 mutations, authentication, arbitrary command execution, or generic Microsoft
 Graph requests.
 
+Collection tools use bounded limits. `calendar_list` defaults to 100 events,
+accepts at most 1,000, stops following Outlook calendar-view pages when the
+requested bound is reached, and rejects ranges longer than 366 days.
+
 ## Content and tenant safety
 
 - Every returned Microsoft 365 resource is wrapped with `untrusted: true` and

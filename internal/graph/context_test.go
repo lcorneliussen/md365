@@ -42,3 +42,15 @@ func TestGraphRequestHonorsCanceledContext(t *testing.T) {
 		t.Fatalf("error = %v, want context.Canceled", err)
 	}
 }
+
+func TestCalendarViewPaginationStopsAtLimit(t *testing.T) {
+	all := []Event{{ID: "event-1"}}
+	page := []Event{{ID: "event-2"}, {ID: "event-3"}}
+	got, complete := appendEventPage(all, page, 2)
+	if !complete {
+		t.Fatal("page did not complete the bounded calendar query")
+	}
+	if len(got) != 2 || got[1].ID != "event-2" {
+		t.Fatalf("bounded events = %#v, want first two events", got)
+	}
+}

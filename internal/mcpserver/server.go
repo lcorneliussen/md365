@@ -175,6 +175,7 @@ type calendarListInput struct {
 	From    string `json:"from,omitempty" jsonschema:"range start as RFC3339 or YYYY-MM-DD; defaults to now"`
 	To      string `json:"to,omitempty" jsonschema:"range end as RFC3339 or YYYY-MM-DD; defaults to 14 days from now"`
 	Search  string `json:"search,omitempty" jsonschema:"case-insensitive Outlook event text filter"`
+	Limit   int    `json:"limit,omitempty" jsonschema:"maximum calendar events to return; defaults to 100"`
 }
 
 type teamsListInput struct {
@@ -389,15 +390,19 @@ func (s *serverState) calendarList(ctx context.Context, _ *mcp.CallToolRequest, 
 	if err != nil {
 		return fail[CollectionResult[cal.EventInfo]](err)
 	}
-	values, err := s.backend.CalendarList(ctx, input.Account, from, to, input.Search)
+	limit, err := requestedLimit(input.Limit, 100)
 	if err != nil {
 		return fail[CollectionResult[cal.EventInfo]](err)
 	}
-	total := len(values)
+	values, err := s.backend.CalendarList(ctx, input.Account, from, to, input.Search, limit+1)
+	if err != nil {
+		return fail[CollectionResult[cal.EventInfo]](err)
+	}
+	values, meta := page(values, limit)
 	data := protectMany(values, func(value cal.EventInfo) output.UntrustedSource {
 		return output.UntrustedSource{Workload: "exchange_online", Resource: "event", Account: input.Account, ResourceID: value.ID}
 	})
-	return nil, CollectionResult[cal.EventInfo]{Data: data, Meta: CollectionMeta{Count: total, Total: &total}}, nil
+	return nil, CollectionResult[cal.EventInfo]{Data: data, Meta: meta}, nil
 }
 
 func (s *serverState) teamsList(ctx context.Context, _ *mcp.CallToolRequest, input teamsListInput) (*mcp.CallToolResult, CollectionResult[teams.TeamInfo], error) {
@@ -463,6 +468,9 @@ func calendarRange(fromValue, toValue string, location *time.Location) (time.Tim
 	}
 	if !to.After(from) {
 		return time.Time{}, time.Time{}, apierr.Usage("to must be after from")
+	}
+	if to.Sub(from) > 366*24*time.Hour {
+		return time.Time{}, time.Time{}, apierr.Usage("calendar range cannot exceed 366 days")
 	}
 	return from, to, nil
 }

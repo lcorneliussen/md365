@@ -176,6 +176,9 @@ func TestCalendarRangeUsesConfiguredTimezoneAndPreservesRFC3339Offset(t *testing
 	if offset != 2*60*60 {
 		t.Fatalf("RFC3339 offset = %d, want 7200", offset)
 	}
+	if _, _, err := calendarRange("2026-01-01", "2028-01-01", berlin); err == nil {
+		t.Fatal("calendar range longer than 366 days was accepted")
+	}
 }
 
 func connectTestClient(t *testing.T, ctx context.Context, server *mcp.Server) *mcp.ClientSession {
@@ -274,7 +277,7 @@ func (b *fakeGraphBackend) DriveItemsList(context.Context, string, string, strin
 	return []storage.ItemInfo{{ID: "item-1", DriveID: "drive-1", Account: "work", Name: "Report.pdf"}}, nil
 }
 
-func (b *fakeGraphBackend) CalendarList(ctx context.Context, _ string, _, _ time.Time, _ string) ([]cal.EventInfo, error) {
+func (b *fakeGraphBackend) CalendarList(ctx context.Context, _ string, _, _ time.Time, _ string, _ int) ([]cal.EventInfo, error) {
 	var values []cal.EventInfo
 	return values, b.get(ctx, "/v1.0/me/calendarView", &values)
 }

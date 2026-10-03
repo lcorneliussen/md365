@@ -34,6 +34,12 @@ func List(cfg *config.Config, fromDate, toDate time.Time, search, account string
 
 // ListContext lists events and honors cancellation for live Microsoft Graph reads.
 func ListContext(ctx context.Context, cfg *config.Config, fromDate, toDate time.Time, search, account string, noCache bool) ([]EventInfo, error) {
+	return ListContextLimit(ctx, cfg, fromDate, toDate, search, account, noCache, 0)
+}
+
+// ListContextLimit lists at most limit events. A limit of zero keeps the
+// existing unbounded CLI behavior.
+func ListContextLimit(ctx context.Context, cfg *config.Config, fromDate, toDate time.Time, search, account string, noCache bool, limit int) ([]EventInfo, error) {
 	// Determine which accounts to search
 	var accounts []string
 	if account != "" {
@@ -43,7 +49,7 @@ func ListContext(ctx context.Context, cfg *config.Config, fromDate, toDate time.
 	}
 
 	if noCache {
-		return listLiveContext(ctx, cfg, fromDate, toDate, search, accounts)
+		return listLiveContext(ctx, cfg, fromDate, toDate, search, accounts, limit)
 	}
 
 	// Collect events
@@ -125,14 +131,17 @@ func ListContext(ctx context.Context, cfg *config.Config, fromDate, toDate time.
 	}
 
 	sortEvents(events)
+	if limit > 0 && len(events) > limit {
+		events = events[:limit]
+	}
 	return events, nil
 }
 
 func listLive(cfg *config.Config, fromDate, toDate time.Time, search string, accounts []string) ([]EventInfo, error) {
-	return listLiveContext(context.Background(), cfg, fromDate, toDate, search, accounts)
+	return listLiveContext(context.Background(), cfg, fromDate, toDate, search, accounts, 0)
 }
 
-func listLiveContext(ctx context.Context, cfg *config.Config, fromDate, toDate time.Time, search string, accounts []string) ([]EventInfo, error) {
+func listLiveContext(ctx context.Context, cfg *config.Config, fromDate, toDate time.Time, search string, accounts []string, limit int) ([]EventInfo, error) {
 	var events []EventInfo
 
 	for _, acc := range accounts {
@@ -142,7 +151,7 @@ func listLiveContext(ctx context.Context, cfg *config.Config, fromDate, toDate t
 		}
 
 		client := graph.NewClientWithContext(ctx, token)
-		graphEvents, err := client.GetCalendarView(fromDate, toDate)
+		graphEvents, err := client.GetCalendarViewLimit(fromDate, toDate, remainingLimit(limit, len(events)))
 		if err != nil {
 			return nil, fmt.Errorf("failed to get calendar view for '%s': %w", acc, err)
 		}
@@ -158,11 +167,22 @@ func listLiveContext(ctx context.Context, cfg *config.Config, fromDate, toDate t
 				continue
 			}
 			events = append(events, info)
+			if limit > 0 && len(events) >= limit {
+				sortEvents(events)
+				return events, nil
+			}
 		}
 	}
 
 	sortEvents(events)
 	return events, nil
+}
+
+func remainingLimit(limit, current int) int {
+	if limit <= 0 {
+		return 0
+	}
+	return limit - current
 }
 
 func eventInfoFromGraph(account string, event graph.Event) (EventInfo, error) {

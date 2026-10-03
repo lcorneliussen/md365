@@ -19,7 +19,7 @@ type Backend interface {
 	FilesSearch(context.Context, string, string, int) ([]storage.SearchResultInfo, error)
 	SharePointLibraries(context.Context, string, string, string, int) ([]storage.LibraryInfo, error)
 	DriveItemsList(context.Context, string, string, string, string, int) ([]storage.ItemInfo, error)
-	CalendarList(context.Context, string, time.Time, time.Time, string) ([]cal.EventInfo, error)
+	CalendarList(context.Context, string, time.Time, time.Time, string, int) ([]cal.EventInfo, error)
 	TeamsList(context.Context, string, int) ([]teams.TeamInfo, error)
 	ChannelsList(context.Context, string, string, int) ([]teams.ChannelInfo, error)
 }
@@ -55,8 +55,8 @@ func (b *ProductionBackend) DriveItemsList(ctx context.Context, account, driveID
 	return storage.ListDriveContext(ctx, b.cfg, account, driveID, itemID, path, limit)
 }
 
-func (b *ProductionBackend) CalendarList(ctx context.Context, account string, from, to time.Time, search string) ([]cal.EventInfo, error) {
-	return cal.ListContext(ctx, b.cfg, from, to, search, account, true)
+func (b *ProductionBackend) CalendarList(ctx context.Context, account string, from, to time.Time, search string, limit int) ([]cal.EventInfo, error) {
+	return cal.ListContextLimit(ctx, b.cfg, from, to, search, account, true, limit)
 }
 
 func (b *ProductionBackend) TeamsList(ctx context.Context, account string, limit int) ([]teams.TeamInfo, error) {

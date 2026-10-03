@@ -191,6 +191,12 @@ type ErrorResponse struct {
 
 // GetCalendarView retrieves calendar events in a date range
 func (c *Client) GetCalendarView(startDate, endDate time.Time) ([]Event, error) {
+	return c.GetCalendarViewLimit(startDate, endDate, 0)
+}
+
+// GetCalendarViewLimit retrieves at most limit events and stops following
+// @odata.nextLink once the bound is reached. A zero limit is unbounded.
+func (c *Client) GetCalendarViewLimit(startDate, endDate time.Time, limit int) ([]Event, error) {
 	url := calendarViewURL(startDate, endDate)
 
 	var allEvents []Event
@@ -211,11 +217,23 @@ func (c *Client) GetCalendarView(startDate, endDate time.Time) ([]Event, error) 
 			return nil, fmt.Errorf("failed to parse events: %w", err)
 		}
 
-		allEvents = append(allEvents, events...)
+		var complete bool
+		allEvents, complete = appendEventPage(allEvents, events, limit)
+		if complete {
+			return allEvents, nil
+		}
 		url = odataResp.NextLink
 	}
 
 	return allEvents, nil
+}
+
+func appendEventPage(allEvents, page []Event, limit int) ([]Event, bool) {
+	allEvents = append(allEvents, page...)
+	if limit > 0 && len(allEvents) >= limit {
+		return allEvents[:limit], true
+	}
+	return allEvents, false
 }
 
 func calendarViewURL(startDate, endDate time.Time) string {
