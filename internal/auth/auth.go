@@ -35,6 +35,26 @@ const (
 )
 
 var tenantPattern = regexp.MustCompile(`^[A-Za-z0-9.-]+$`)
+var tokenRefreshLocks sync.Map
+
+type refreshLock struct {
+	semaphore chan struct{}
+}
+
+func refreshLockFor(account string) *refreshLock {
+	value, _ := tokenRefreshLocks.LoadOrStore(account, &refreshLock{semaphore: make(chan struct{}, 1)})
+	return value.(*refreshLock)
+}
+
+func acquireRefreshLock(ctx context.Context, account string) (func(), error) {
+	lock := refreshLockFor(account)
+	select {
+	case lock.semaphore <- struct{}{}:
+		return func() { <-lock.semaphore }, nil
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+}
 
 type oauthEndpoints struct {
 	deviceCode string
@@ -112,8 +132,22 @@ func GetAccessTokenContext(ctx context.Context, cfg *config.Config, account stri
 
 	// Check if token needs refresh
 	if time.Now().Add(tokenBuffer).Unix() >= token.ExpiresOn {
+		release, err := acquireRefreshLock(ctx, account)
+		if err != nil {
+			return "", err
+		}
+		defer release()
+
+		// Another concurrent request may already have refreshed this account.
+		token, err = loadToken(account)
+		if err != nil {
+			return "", apierr.Auth(account)
+		}
+		if time.Now().Add(tokenBuffer).Unix() < token.ExpiresOn {
+			return token.AccessToken, nil
+		}
 		fmt.Fprintf(os.Stderr, "Refreshing token for account '%s'...\n", account)
-		if err := RefreshTokenContext(ctx, cfg, account); err != nil {
+		if err := refreshTokenContextLocked(ctx, cfg, account); err != nil {
 			return "", fmt.Errorf("failed to refresh token: %w", err)
 		}
 		// Reload token after refresh
@@ -133,6 +167,15 @@ func RefreshToken(cfg *config.Config, account string) error {
 
 // RefreshTokenContext refreshes an account token and honors cancellation.
 func RefreshTokenContext(ctx context.Context, cfg *config.Config, account string) error {
+	release, err := acquireRefreshLock(ctx, account)
+	if err != nil {
+		return err
+	}
+	defer release()
+	return refreshTokenContextLocked(ctx, cfg, account)
+}
+
+func refreshTokenContextLocked(ctx context.Context, cfg *config.Config, account string) error {
 	endpoints, err := endpointsFor(cfg, account)
 	if err != nil {
 		return err
@@ -183,9 +226,13 @@ func RefreshTokenContext(ctx context.Context, cfg *config.Config, account string
 		grantedScope = token.Scope
 	}
 
+	refreshToken := tokenResp.RefreshToken
+	if refreshToken == "" {
+		refreshToken = token.RefreshToken
+	}
 	newToken := Token{
 		AccessToken:  tokenResp.AccessToken,
-		RefreshToken: tokenResp.RefreshToken,
+		RefreshToken: refreshToken,
 		ExpiresOn:    time.Now().Unix() + int64(tokenResp.ExpiresIn),
 		Scope:        grantedScope,
 	}
