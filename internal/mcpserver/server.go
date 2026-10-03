@@ -469,10 +469,18 @@ func calendarRange(fromValue, toValue string, location *time.Location) (time.Tim
 	if !to.After(from) {
 		return time.Time{}, time.Time{}, apierr.Usage("to must be after from")
 	}
-	if to.Sub(from) > 366*24*time.Hour {
+	if calendarDaysInclusive(from, to, location) > 366 {
 		return time.Time{}, time.Time{}, apierr.Usage("calendar range cannot exceed 366 days")
 	}
 	return from, to, nil
+}
+
+func calendarDaysInclusive(from, to time.Time, location *time.Location) int {
+	fromYear, fromMonth, fromDay := from.In(location).Date()
+	toYear, toMonth, toDay := to.In(location).Date()
+	fromDate := time.Date(fromYear, fromMonth, fromDay, 0, 0, 0, 0, time.UTC)
+	toDate := time.Date(toYear, toMonth, toDay, 0, 0, 0, 0, time.UTC)
+	return int(toDate.Sub(fromDate)/(24*time.Hour)) + 1
 }
 
 func parseCalendarTime(value string, endOfDay bool, location *time.Location) (time.Time, error) {

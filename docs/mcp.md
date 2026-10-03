@@ -30,8 +30,9 @@ md365 auth login --account work --command "mcp serve"
 md365 auth status --account work --no-input --json
 ```
 
-`mcp serve` needs only these delegated Microsoft Graph permissions for its full
-surface:
+Authentication always includes md365's native-client baseline scopes
+`User.Read` and `offline_access`. `mcp serve` adds only these delegated workload
+permissions for its full surface:
 
 - `Mail.Read` for the signed-in user's Exchange Online mailbox;
 - `Files.Read.All` for visible OneDrive and SharePoint content;

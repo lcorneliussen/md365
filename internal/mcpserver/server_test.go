@@ -167,6 +167,9 @@ func TestCalendarRangeUsesConfiguredTimezoneAndPreservesRFC3339Offset(t *testing
 	if dstEnd.Day() != 25 || dstEnd.Hour() != 23 || dstEnd.Minute() != 59 {
 		t.Fatalf("DST date-only end = %s, want local end of 2026-10-25", dstEnd)
 	}
+	if _, _, err := calendarRange("2025-10-26", "2026-10-26", berlin); err != nil {
+		t.Fatalf("366 calendar dates spanning DST fallback were rejected: %v", err)
+	}
 
 	offsetFrom, _, err := calendarRange("2026-10-01T00:00:00+02:00", "2026-10-02T00:00:00+02:00", berlin)
 	if err != nil {
