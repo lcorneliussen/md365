@@ -44,7 +44,7 @@ var aboutCmd = &cobra.Command{
 		fmt.Fprintln(out, "Read model:")
 		fmt.Fprintln(out, "  Calendar and contact list/search commands default to the local Markdown cache.")
 		fmt.Fprintln(out, "  Use --no-cache on supported commands to bypass local files and read Graph directly.")
-		fmt.Fprintln(out, "  Mail, Teams, OneDrive, SharePoint, and file search read Microsoft Graph directly.")
+		fmt.Fprintln(out, "  Mail, Teams, OneDrive, SharePoint, Loop, and file search read Microsoft Graph directly.")
 		fmt.Fprintln(out, "  mail search uses Microsoft Search for the signed-in user's Exchange Online mailbox.")
 		fmt.Fprintln(out, "  mail list --search is for folder-aware, shared/delegated, or personal mailbox queries.")
 		fmt.Fprintln(out)
@@ -79,6 +79,7 @@ var aboutCmd = &cobra.Command{
 		fmt.Fprintln(out, "  md365 teams files --account <name> --team-id <id> --channel-id <id>")
 		fmt.Fprintln(out, "  md365 onedrive list --account <name>")
 		fmt.Fprintln(out, "  md365 files search \"Jahresabschluss 2023\" --account <name>")
+		fmt.Fprintln(out, "  md365 loop search \"project atlas\" --account <name>")
 		fmt.Fprintln(out, "  md365 sharepoint libraries --account <name> --team-id <id>")
 		fmt.Fprintln(out, "  md365 sharepoint list --account <name> --team-id <id>")
 		fmt.Fprintln(out, "  md365 sharepoint list --account <name> --drive-id <id>")
@@ -95,7 +96,7 @@ var aboutCmd = &cobra.Command{
 func newAboutInfo() aboutInfo {
 	return aboutInfo{
 		Name:        "md365",
-		Description: "AI- and human-friendly CLI for Microsoft 365 calendars, contacts, mail, Teams, OneDrive, and SharePoint.",
+		Description: "AI- and human-friendly CLI for Microsoft 365 calendars, contacts, mail, Teams, OneDrive, SharePoint, and Loop.",
 		ReadModel: map[string]string{
 			"calendar":   "cache-first; use --no-cache to read Microsoft Graph directly",
 			"contacts":   "cache-first; use --no-cache to read Microsoft Graph directly",
@@ -104,6 +105,7 @@ func newAboutInfo() aboutInfo {
 			"onedrive":   "live Microsoft Graph reads",
 			"sharepoint": "live Microsoft Graph reads",
 			"files":      "tenant-wide live Microsoft Graph Search across visible OneDrive and SharePoint content",
+			"loop":       "live Microsoft Search across visible .loop and legacy .fluid components; not a complete SharePoint Embedded workspace inventory",
 		},
 		Writes: []string{
 			"Calendar create/delete always goes through Microsoft Graph.",
@@ -135,6 +137,7 @@ func newAboutInfo() aboutInfo {
 			"md365 teams files --account <name> --team-id <id> --channel-id <id>",
 			"md365 onedrive list --account <name>",
 			"md365 files search \"Jahresabschluss 2023\" --account <name>",
+			"md365 loop search \"project atlas\" --account <name>",
 			"md365 sharepoint libraries --account <name> --team-id <id>",
 			"md365 sharepoint list --account <name> --team-id <id>",
 			"md365 sharepoint list --account <name> --drive-id <id>",

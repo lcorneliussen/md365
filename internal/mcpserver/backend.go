@@ -6,6 +6,7 @@ import (
 
 	"github.com/lcorneliussen/md365/internal/cal"
 	"github.com/lcorneliussen/md365/internal/config"
+	loopresource "github.com/lcorneliussen/md365/internal/loop"
 	"github.com/lcorneliussen/md365/internal/mail"
 	"github.com/lcorneliussen/md365/internal/storage"
 	"github.com/lcorneliussen/md365/internal/teams"
@@ -17,6 +18,7 @@ type Backend interface {
 	MailSearch(context.Context, string, string, int, bool) ([]mail.SearchResultInfo, error)
 	MailGet(context.Context, string, string) (*mail.MessageInfo, error)
 	FilesSearch(context.Context, string, string, int) ([]storage.SearchResultInfo, error)
+	LoopSearch(context.Context, string, string, int) ([]loopresource.ComponentInfo, error)
 	SharePointLibraries(context.Context, string, string, string, int) ([]storage.LibraryInfo, error)
 	DriveItemsList(context.Context, string, string, string, string, int) ([]storage.ItemInfo, error)
 	CalendarList(context.Context, string, time.Time, time.Time, string, int) ([]cal.EventInfo, error)
@@ -42,6 +44,10 @@ func (b *ProductionBackend) MailGet(ctx context.Context, account, id string) (*m
 
 func (b *ProductionBackend) FilesSearch(ctx context.Context, account, query string, limit int) ([]storage.SearchResultInfo, error) {
 	return storage.SearchContext(ctx, b.cfg, account, query, limit)
+}
+
+func (b *ProductionBackend) LoopSearch(ctx context.Context, account, query string, limit int) ([]loopresource.ComponentInfo, error) {
+	return loopresource.SearchContext(ctx, b.cfg, account, query, limit)
 }
 
 func (b *ProductionBackend) SharePointLibraries(ctx context.Context, account, teamID, siteID string, limit int) ([]storage.LibraryInfo, error) {

@@ -62,7 +62,7 @@ var rootCmd = &cobra.Command{
 	Long: `md365 - AI- and human-friendly CLI for Microsoft 365
 
 Syncs calendars and contacts as plain Markdown files with YAML frontmatter.
-Mail, Teams, OneDrive, SharePoint, and write operations use Microsoft Graph API.`,
+Mail, Teams, OneDrive, SharePoint, Loop, and write operations use Microsoft Graph API.`,
 	PersistentPreRunE: prepareCommand,
 }
 
@@ -324,6 +324,7 @@ func init() {
 	rootCmd.AddCommand(oneDriveCmd)
 	rootCmd.AddCommand(sharePointCmd)
 	rootCmd.AddCommand(filesCmd)
+	rootCmd.AddCommand(loopCmd)
 	rootCmd.AddCommand(authCmd)
 	rootCmd.AddCommand(aboutCmd)
 	rootCmd.AddCommand(commandsCmd)

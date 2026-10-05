@@ -35,7 +35,7 @@ Authentication always includes md365's native-client baseline scopes
 permissions for its full surface:
 
 - `Mail.Read` for the signed-in user's Exchange Online mailbox;
-- `Files.Read.All` for visible OneDrive and SharePoint content;
+- `Files.Read.All` for visible OneDrive, SharePoint, and Microsoft Loop components;
 - `Calendars.Read` for the signed-in user's Outlook calendar;
 - `Team.ReadBasic.All` and `Channel.ReadBasic.All` for joined Microsoft Teams
   teams and channels.
@@ -51,6 +51,7 @@ error; the server never escalates consent interactively.
 | `mail_search` | Exchange Online / Microsoft Search | `mail search` |
 | `mail_get` | Exchange Online | `mail get` |
 | `files_search` | OneDrive and SharePoint / Microsoft Search | `files search` |
+| `loop_search` | Microsoft Loop components / Microsoft Search | `loop search` |
 | `sharepoint_libraries` | SharePoint document libraries | `sharepoint libraries` |
 | `drive_items_list` | OneDrive and SharePoint DriveItems | `sharepoint list` |
 | `calendar_list` | Outlook calendar | `cal list --no-cache` |

@@ -9,4 +9,7 @@ func TestStorageLimitDefaultsAreIndependent(t *testing.T) {
 	if storageLimit != 100 {
 		t.Fatalf("storage list limit = %d, want 100", storageLimit)
 	}
+	if loopLimit != 25 {
+		t.Fatalf("Loop search limit = %d, want 25", loopLimit)
+	}
 }

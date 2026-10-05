@@ -198,6 +198,19 @@ func (c *Client) GetDriveItem(driveID, itemID string) (*DriveItem, error) {
 
 // SearchDriveItems searches all OneDrive and SharePoint content visible to the signed-in user.
 func (c *Client) SearchDriveItems(query string, limit int) ([]DriveItemSearchHit, error) {
+	return c.searchDriveItems(query, limit, nil)
+}
+
+// SearchLoopComponents searches Microsoft Loop components that are visible to
+// Microsoft Search. Loop components are current .loop files or legacy .fluid
+// files stored in OneDrive, SharePoint, or indexed SharePoint Embedded storage.
+func (c *Client) SearchLoopComponents(query string, limit int) ([]DriveItemSearchHit, error) {
+	return c.searchDriveItems(loopSearchQuery(query), limit, func(hit DriveItemSearchHit) bool {
+		return isLoopComponentName(hit.Resource.Name)
+	})
+}
+
+func (c *Client) searchDriveItems(query string, limit int, accept func(DriveItemSearchHit) bool) ([]DriveItemSearchHit, error) {
 	query = strings.TrimSpace(query)
 	if query == "" {
 		return nil, fmt.Errorf("search query is required")
@@ -207,7 +220,7 @@ func (c *Client) SearchDriveItems(query string, limit int) ([]DriveItemSearchHit
 	}
 
 	results := make([]DriveItemSearchHit, 0, min(limit, 100))
-	for from := 0; len(results) < limit; {
+	for from, scanned := 0, 0; len(results) < limit; {
 		size := min(limit-len(results), 100)
 		body, err := json.Marshal(newDriveItemSearchRequest(query, from, size))
 		if err != nil {
@@ -221,9 +234,20 @@ func (c *Client) SearchDriveItems(query string, limit int) ([]DriveItemSearchHit
 		if err != nil {
 			return nil, err
 		}
-		results = append(results, hits...)
+		scanned += len(hits)
+		for _, hit := range hits {
+			if accept == nil || accept(hit) {
+				results = append(results, hit)
+				if len(results) == limit {
+					break
+				}
+			}
+		}
 		if !more || len(hits) == 0 {
 			break
+		}
+		if scanned >= 10000 {
+			return nil, fmt.Errorf("Microsoft Search scanned 10000 drive items without completing the requested result set; narrow the query")
 		}
 		from += size
 	}
@@ -232,6 +256,20 @@ func (c *Client) SearchDriveItems(query string, limit int) ([]DriveItemSearchHit
 	}
 	c.hydrateAmbiguousSearchHits(results)
 	return results, nil
+}
+
+func isLoopComponentName(name string) bool {
+	name = strings.ToLower(strings.TrimSpace(name))
+	return strings.HasSuffix(name, ".loop") || strings.HasSuffix(name, ".fluid")
+}
+
+func loopSearchQuery(query string) string {
+	const types = "(filetype:loop OR filetype:fluid)"
+	query = strings.TrimSpace(query)
+	if query == "" {
+		return types
+	}
+	return "(" + query + ") AND " + types
 }
 
 // SearchMessages searches the signed-in user's Exchange Online mailbox. By

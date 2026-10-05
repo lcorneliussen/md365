@@ -30,6 +30,28 @@ func TestNewDriveItemSearchRequest(t *testing.T) {
 	}
 }
 
+func TestLoopSearchQueryConstrainsFileTypes(t *testing.T) {
+	if got, want := loopSearchQuery(""), "(filetype:loop OR filetype:fluid)"; got != want {
+		t.Fatalf("empty Loop query = %q, want %q", got, want)
+	}
+	if got, want := loopSearchQuery(" project plan "), "(project plan) AND (filetype:loop OR filetype:fluid)"; got != want {
+		t.Fatalf("Loop query = %q, want %q", got, want)
+	}
+}
+
+func TestLoopComponentNameFilter(t *testing.T) {
+	for _, name := range []string{"Plan.loop", "Legacy.FLUID", " spaced.loop "} {
+		if !isLoopComponentName(name) {
+			t.Errorf("%q was not recognized as a Loop component", name)
+		}
+	}
+	for _, name := range []string{"Plan.pdf", "loop", "Plan.loop.pdf"} {
+		if isLoopComponentName(name) {
+			t.Errorf("%q was incorrectly recognized as a Loop component", name)
+		}
+	}
+}
+
 func TestParseDriveItemSearchResponse(t *testing.T) {
 	data := []byte(`{
 		"value": [{

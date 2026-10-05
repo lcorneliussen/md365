@@ -154,6 +154,7 @@ func TestSchemaPublishesKnownAliases(t *testing.T) {
 		}
 	}
 	want := map[string][]string{
+		"md365 loop search":          {"list", "ls"},
 		"md365 onedrive list":        {"ls"},
 		"md365 sharepoint libraries": {"drives"},
 		"md365 sharepoint list":      {"ls"},
