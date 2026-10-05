@@ -1,6 +1,6 @@
 # md365
 
-AI- and human-friendly CLI for Microsoft 365. Syncs calendars and contacts as local Markdown files and provides live access to mail, Teams, OneDrive, and SharePoint.
+AI- and human-friendly CLI for Microsoft 365. Syncs calendars and contacts as local Markdown files and provides live access to mail, Teams, OneDrive, SharePoint, and Microsoft Loop components.
 
 ## The Problem
 
@@ -132,6 +132,9 @@ md365 onedrive list --account work --item-id <folder-item-id>
 
 md365 files search "Jahresabschluss 2023" --account work
 
+md365 loop list --account work
+md365 loop search "project atlas" --account work
+
 md365 sharepoint libraries --account work --team-id <team-id>
 md365 sharepoint list --account work --team-id <team-id>
 md365 sharepoint list --account work --site-id <site-id> --path "Projects/Current"
@@ -154,6 +157,14 @@ library. Use `sharepoint libraries` to discover additional libraries such as
 `Datenraum`, then pass the returned ID to `sharepoint list --drive-id`.
 `files search` searches all visible OneDrive and SharePoint content and returns
 stable item, drive, and site IDs for follow-up commands.
+
+`loop search` uses Microsoft Search to find current `.loop` and legacy `.fluid`
+components visible to the signed-in account. With no query, its `list`/`ls`
+aliases enumerate visible components. Results can include Loop content stored in
+OneDrive, SharePoint, or indexed SharePoint Embedded storage. This is component
+discovery, not a complete Loop workspace/container inventory: direct access to
+Microsoft's Loop containers requires an app-specific SharePoint Embedded guest
+permission grant.
 
 `mail search` uses the Microsoft Search API across the signed-in user's own
 Exchange Online mailbox, including supported attachment content. Results are
@@ -209,8 +220,8 @@ full output and exit-code contract is documented in
 
 ### MCP server
 
-`md365 mcp serve` provides eight typed, read-only tools for Exchange Online,
-Outlook calendar, Microsoft Teams, OneDrive, SharePoint, and Microsoft Search.
+`md365 mcp serve` provides nine typed, read-only tools for Exchange Online,
+Outlook calendar, Microsoft Teams, OneDrive, SharePoint, Microsoft Loop, and Microsoft Search.
 It uses stdio, starts without an authentication prompt, and exposes neither a
 shell nor a generic Microsoft Graph request. Configure MCP hosts to launch it
 with both safety guards:
@@ -282,7 +293,7 @@ md365 auth explain --account work
 ```
 
 Available feature bundles currently include `mail-read`, `mail-manage`,
-`mail-send`, `calendar-read`, `calendar`, `teams-read`, `files-read`, and
+`mail-send`, `calendar-read`, `calendar`, `teams-read`, `files-read`, `loop-read`, and
 `sync`. Raw `--scope`/`--scopes` flags remain available as an expert escape
 hatch.
 

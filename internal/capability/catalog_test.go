@@ -86,8 +86,22 @@ func TestResolveFilesFeatureIncludesSharePointScope(t *testing.T) {
 	if !reflect.DeepEqual(plan.Scopes, want) {
 		t.Fatalf("scopes = %#v, want %#v", plan.Scopes, want)
 	}
-	if len(plan.Commands) != 4 {
-		t.Fatalf("commands = %d, want 4", len(plan.Commands))
+	if len(plan.Commands) != 5 {
+		t.Fatalf("commands = %d, want 5", len(plan.Commands))
+	}
+}
+
+func TestResolveLoopFeatureUsesFilesReadAll(t *testing.T) {
+	plan, err := Resolve(nil, []string{"loop-read"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"Files.Read.All", "User.Read", "offline_access"}
+	if !reflect.DeepEqual(plan.Scopes, want) {
+		t.Fatalf("scopes = %#v, want %#v", plan.Scopes, want)
+	}
+	if len(plan.Commands) != 1 || plan.Commands[0].Name != "loop search" {
+		t.Fatalf("commands = %#v", plan.Commands)
 	}
 }
 

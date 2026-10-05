@@ -1,7 +1,7 @@
 # AGENTS.md — md365
 
 ## Project
-- **What:** AI- and human-friendly CLI for Microsoft 365 — calendars, contacts, mail, Teams, OneDrive, and SharePoint
+- **What:** AI- and human-friendly CLI for Microsoft 365 — calendars, contacts, mail, Teams, OneDrive, SharePoint, and Loop
 - **Language:** Go
 - **Repo:** github.com/lcorneliussen/md365
 - **Binary:** `md365`
@@ -66,6 +66,7 @@ internal/
   contacts/    # Contact sync
   graph/       # Microsoft Graph API client and types
   mail/        # Mail list, get, send
+  loop/        # Microsoft Loop component discovery through Microsoft Search
   storage/     # OneDrive/SharePoint browsing, library discovery, and tenant-wide file search
   sync/        # Sync engine, markdown file writer
   teams/       # Teams and channel browsing
@@ -78,3 +79,4 @@ internal/
 - **Read source model:** Calendar and contacts default to the local Markdown cache for fast search/filter. `--no-cache` means bypass local files and read directly from Microsoft Graph without updating the cache.
 - **Structured responses:** JSON output uses a stable envelope with `ok`, `data`, optional `summary`, `meta`, and `breadcrumbs`. Breadcrumbs should point agents to natural next commands such as listing attachments after reading an email.
 - **File discovery:** `files search` uses Microsoft Search across all visible OneDrive and SharePoint content. `sharepoint list` without `--drive-id` browses only the default library; enumerate non-default libraries with `sharepoint libraries`, then browse them by returned drive ID.
+- **Loop discovery:** `loop search` constrains Microsoft Search to current `.loop` and legacy `.fluid` DriveItems. It can surface indexed OneDrive, SharePoint, and SharePoint Embedded content, but does not claim full Loop workspace/container enumeration.

@@ -30,6 +30,60 @@ func TestNewDriveItemSearchRequest(t *testing.T) {
 	}
 }
 
+func TestLoopSearchQueryConstrainsFileTypes(t *testing.T) {
+	if got, want := loopSearchQuery(""), "(filetype:loop OR filetype:fluid)"; got != want {
+		t.Fatalf("empty Loop query = %q, want %q", got, want)
+	}
+	if got, want := loopSearchQuery(" project plan "), "(project plan) AND (filetype:loop OR filetype:fluid)"; got != want {
+		t.Fatalf("Loop query = %q, want %q", got, want)
+	}
+}
+
+func TestLoopComponentNameFilter(t *testing.T) {
+	for _, name := range []string{"Plan.loop", "Legacy.FLUID", " spaced.loop "} {
+		if !isLoopComponentName(name) {
+			t.Errorf("%q was not recognized as a Loop component", name)
+		}
+	}
+	for _, name := range []string{"Plan.pdf", "loop", "Plan.loop.pdf"} {
+		if isLoopComponentName(name) {
+			t.Errorf("%q was incorrectly recognized as a Loop component", name)
+		}
+	}
+}
+
+func TestSearchLoopComponentsFiltersWhilePaging(t *testing.T) {
+	var offsets []int
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var request searchRequest
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			t.Fatal(err)
+		}
+		query := request.Requests[0]
+		offsets = append(offsets, query.From)
+		w.Header().Set("Content-Type", "application/json")
+		if query.From == 0 {
+			fmt.Fprint(w, `{"value":[{"hitsContainers":[{"moreResultsAvailable":true,"hits":[{"rank":1,"resource":{"id":"pdf-1","name":"Not Loop.pdf","size":1,"file":{"mimeType":"application/pdf"}}}]}]}]}`)
+			return
+		}
+		fmt.Fprint(w, `{"value":[{"hitsContainers":[{"moreResultsAvailable":false,"hits":[{"rank":2,"resource":{"id":"loop-1","name":"Plan.loop","size":1,"file":{"mimeType":"application/octet-stream"}}}]}]}]}`)
+	}))
+	defer server.Close()
+
+	hits, err := NewClient("token").searchDriveItems(server.URL, loopSearchQuery("plan"), 1, func(hit DriveItemSearchHit) bool {
+		return isLoopComponentName(hit.Resource.Name)
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(hits) != 1 || hits[0].Resource.ID != "loop-1" {
+		t.Fatalf("hits = %#v", hits)
+	}
+	if len(offsets) != 2 || offsets[0] != 0 || offsets[1] != 1 {
+		t.Fatalf("offsets = %#v, want [0 1]", offsets)
+	}
+}
+
 func TestParseDriveItemSearchResponse(t *testing.T) {
 	data := []byte(`{
 		"value": [{

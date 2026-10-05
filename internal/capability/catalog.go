@@ -54,6 +54,7 @@ var commands = []Command{
 	{Name: "sharepoint list", Description: "Browse SharePoint document libraries", Scopes: []string{"Files.Read.All"}},
 	{Name: "sharepoint libraries", Description: "List SharePoint document libraries", Scopes: []string{"Files.Read.All"}},
 	{Name: "files search", Description: "Search OneDrive and SharePoint files", Scopes: []string{"Files.Read.All"}},
+	{Name: "loop search", Description: "Search Microsoft Loop components visible to Microsoft Search", Scopes: []string{"Files.Read.All"}},
 	{Name: "mcp serve", Description: "Serve the fixed read-only Microsoft 365 MCP tool set", Scopes: []string{"Mail.Read", "Files.Read.All", "Calendars.Read", "Team.ReadBasic.All", "Channel.ReadBasic.All"}},
 	{Name: "sync", Description: "Sync calendars and contacts", Scopes: []string{"Calendars.Read", "Contacts.Read"}},
 }
@@ -65,7 +66,8 @@ var features = []Feature{
 	{Name: "calendar-read", Description: "Read calendar events", Commands: []string{"cal list"}},
 	{Name: "calendar", Description: "Read and manage calendar events", Commands: []string{"cal list", "cal create", "cal delete"}},
 	{Name: "teams-read", Description: "Browse teams, channels, and channel files", Commands: []string{"teams list", "teams channels", "teams files"}},
-	{Name: "files-read", Description: "Search and browse OneDrive and SharePoint files", Commands: []string{"onedrive list", "sharepoint list", "sharepoint libraries", "files search"}},
+	{Name: "files-read", Description: "Search and browse OneDrive, SharePoint, and Microsoft Loop files", Commands: []string{"onedrive list", "sharepoint list", "sharepoint libraries", "files search", "loop search"}},
+	{Name: "loop-read", Description: "Discover Microsoft Loop components visible to Microsoft Search", Commands: []string{"loop search"}},
 	{Name: "sync", Description: "Sync calendars and contacts", Commands: []string{"sync"}},
 }
 

@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/lcorneliussen/md365/internal/cal"
+	loopresource "github.com/lcorneliussen/md365/internal/loop"
 	"github.com/lcorneliussen/md365/internal/mail"
 	"github.com/lcorneliussen/md365/internal/storage"
 	"github.com/lcorneliussen/md365/internal/teams"
@@ -26,7 +27,7 @@ func TestDefinitionsAreFixedReadOnlyMicrosoft365Surface(t *testing.T) {
 	}
 	wantNames := []string{
 		"calendar_list", "channels_list", "drive_items_list", "files_search",
-		"mail_get", "mail_search", "sharepoint_libraries", "teams_list",
+		"loop_search", "mail_get", "mail_search", "sharepoint_libraries", "teams_list",
 	}
 	gotNames := make([]string, 0, len(definitions))
 	for _, definition := range definitions {
@@ -61,8 +62,8 @@ func TestTypedToolsAgainstFakeMicrosoftGraph(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(listed.Tools) != 8 {
-		t.Fatalf("listed %d tools, want 8", len(listed.Tools))
+	if len(listed.Tools) != 9 {
+		t.Fatalf("listed %d tools, want 9", len(listed.Tools))
 	}
 	for _, tool := range listed.Tools {
 		if tool.InputSchema == nil || tool.OutputSchema == nil {
@@ -82,6 +83,7 @@ func TestTypedToolsAgainstFakeMicrosoftGraph(t *testing.T) {
 		{"mail_search", map[string]any{"account": "work", "query": "quarterly results"}, "exchange_online", "message"},
 		{"mail_get", map[string]any{"account": "work", "id": "message-1"}, "exchange_online", "message"},
 		{"files_search", map[string]any{"account": "work", "query": "annual report"}, "onedrive_sharepoint", "drive_item"},
+		{"loop_search", map[string]any{"account": "work", "query": "project plan"}, "microsoft_loop", "loop_component"},
 		{"sharepoint_libraries", map[string]any{"account": "work", "team_id": "team-1"}, "sharepoint", "document_library"},
 		{"drive_items_list", map[string]any{"account": "work", "drive_id": "drive-1"}, "onedrive_sharepoint", "drive_item"},
 		{"calendar_list", map[string]any{"account": "work", "from": "2026-10-01", "to": "2026-10-31"}, "exchange_online", "event"},
@@ -270,6 +272,10 @@ func (b *fakeGraphBackend) MailGet(context.Context, string, string) (*mail.Messa
 func (b *fakeGraphBackend) FilesSearch(ctx context.Context, _, _ string, _ int) ([]storage.SearchResultInfo, error) {
 	var values []storage.SearchResultInfo
 	return values, b.get(ctx, "/v1.0/search/driveItems", &values)
+}
+
+func (b *fakeGraphBackend) LoopSearch(context.Context, string, string, int) ([]loopresource.ComponentInfo, error) {
+	return []loopresource.ComponentInfo{{ID: "loop-1", DriveID: "drive-1", Account: "work", Name: "Project plan.loop", Format: "loop", Rank: 1}}, nil
 }
 
 func (b *fakeGraphBackend) SharePointLibraries(context.Context, string, string, string, int) ([]storage.LibraryInfo, error) {

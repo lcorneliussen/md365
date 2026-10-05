@@ -81,6 +81,7 @@ var policies = map[string]Policy{
 	"sharepoint libraries":  {Mutability: Read, Effects: []string{"microsoft_graph_read"}},
 	"sharepoint list":       {Mutability: Read, Effects: []string{"microsoft_graph_read"}},
 	"files search":          {Mutability: Read, Effects: []string{"microsoft_graph_read", "microsoft_search"}},
+	"loop search":           {Mutability: Read, Effects: []string{"microsoft_graph_read", "microsoft_search"}},
 }
 
 var collectionOutputCommands = map[string]bool{
@@ -88,6 +89,7 @@ var collectionOutputCommands = map[string]bool{
 	"mail search": true, "mail attachments": true, "teams list": true,
 	"teams channels": true, "teams files": true, "onedrive list": true,
 	"sharepoint libraries": true, "sharepoint list": true, "files search": true,
+	"loop search": true,
 }
 
 var constraints = map[string][]Constraint{
@@ -120,6 +122,7 @@ var flagRequirements = map[string]map[string]FlagRequirement{
 	"auth scopes":          {"account": {Required: true}},
 	"cal create":           {"account": {Required: true}, "end": {Required: true}, "start": {Required: true}, "subject": {Required: true}},
 	"files search":         {"account": {Required: true}},
+	"loop search":          {"account": {Required: true}},
 	"mail archive":         {"account": {Required: true}},
 	"mail attachments":     {"account": {Required: true}, "id": {Required: true}},
 	"mail delete":          {"account": {Required: true}},

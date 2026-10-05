@@ -14,6 +14,7 @@ import (
 	"github.com/lcorneliussen/md365/internal/capability"
 	"github.com/lcorneliussen/md365/internal/commandmeta"
 	"github.com/lcorneliussen/md365/internal/config"
+	loopresource "github.com/lcorneliussen/md365/internal/loop"
 	"github.com/lcorneliussen/md365/internal/mail"
 	"github.com/lcorneliussen/md365/internal/output"
 	"github.com/lcorneliussen/md365/internal/storage"
@@ -21,7 +22,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-const ServerVersion = "1.0.0"
+const ServerVersion = "1.1.0"
 
 type Options struct {
 	Backend  Backend
@@ -43,6 +44,7 @@ var toolCommands = []struct {
 	{"mail_search", "mail search"},
 	{"mail_get", "mail get"},
 	{"files_search", "files search"},
+	{"loop_search", "loop search"},
 	{"sharepoint_libraries", "sharepoint libraries"},
 	{"drive_items_list", "sharepoint list"},
 	{"calendar_list", "cal list"},
@@ -155,6 +157,12 @@ type filesSearchInput struct {
 	Limit   int    `json:"limit,omitempty" jsonschema:"maximum drive items to return; defaults to 25"`
 }
 
+type loopSearchInput struct {
+	Account string `json:"account" jsonschema:"configured md365 account name"`
+	Query   string `json:"query,omitempty" jsonschema:"optional Microsoft Search query constrained to current .loop and legacy .fluid components"`
+	Limit   int    `json:"limit,omitempty" jsonschema:"maximum Loop components to return; defaults to 25"`
+}
+
 type sharePointLibrariesInput struct {
 	Account string `json:"account" jsonschema:"configured md365 account name"`
 	TeamID  string `json:"team_id,omitempty" jsonschema:"Microsoft 365 group ID backing a Microsoft Teams team"`
@@ -193,6 +201,7 @@ func (s *serverState) addTools(server *mcp.Server) {
 	mcp.AddTool(server, s.tool("mail_search"), s.mailSearch)
 	mcp.AddTool(server, s.tool("mail_get"), s.mailGet)
 	mcp.AddTool(server, s.tool("files_search"), s.filesSearch)
+	mcp.AddTool(server, s.tool("loop_search"), s.loopSearch)
 	mcp.AddTool(server, s.tool("sharepoint_libraries"), s.sharePointLibraries)
 	mcp.AddTool(server, s.tool("drive_items_list"), s.driveItemsList)
 	mcp.AddTool(server, s.tool("calendar_list"), s.calendarList)
@@ -333,6 +342,25 @@ func (s *serverState) filesSearch(ctx context.Context, _ *mcp.CallToolRequest, i
 		return output.UntrustedSource{Workload: "onedrive_sharepoint", Resource: "drive_item", Account: input.Account, ResourceID: value.ID, DriveID: value.DriveID}
 	})
 	return nil, CollectionResult[storage.SearchResultInfo]{Data: data, Meta: meta}, nil
+}
+
+func (s *serverState) loopSearch(ctx context.Context, _ *mcp.CallToolRequest, input loopSearchInput) (*mcp.CallToolResult, CollectionResult[loopresource.ComponentInfo], error) {
+	if err := s.validateAccount(input.Account); err != nil {
+		return fail[CollectionResult[loopresource.ComponentInfo]](err)
+	}
+	limit, err := requestedLimit(input.Limit, 25)
+	if err != nil {
+		return fail[CollectionResult[loopresource.ComponentInfo]](err)
+	}
+	values, err := s.backend.LoopSearch(ctx, input.Account, strings.TrimSpace(input.Query), limit+1)
+	if err != nil {
+		return fail[CollectionResult[loopresource.ComponentInfo]](err)
+	}
+	values, meta := page(values, limit)
+	data := protectMany(values, func(value loopresource.ComponentInfo) output.UntrustedSource {
+		return output.UntrustedSource{Workload: "microsoft_loop", Resource: "loop_component", Account: input.Account, ResourceID: value.ID, DriveID: value.DriveID}
+	})
+	return nil, CollectionResult[loopresource.ComponentInfo]{Data: data, Meta: meta}, nil
 }
 
 func (s *serverState) sharePointLibraries(ctx context.Context, _ *mcp.CallToolRequest, input sharePointLibrariesInput) (*mcp.CallToolResult, CollectionResult[storage.LibraryInfo], error) {
