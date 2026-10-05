@@ -198,19 +198,19 @@ func (c *Client) GetDriveItem(driveID, itemID string) (*DriveItem, error) {
 
 // SearchDriveItems searches all OneDrive and SharePoint content visible to the signed-in user.
 func (c *Client) SearchDriveItems(query string, limit int) ([]DriveItemSearchHit, error) {
-	return c.searchDriveItems(query, limit, nil)
+	return c.searchDriveItems(baseURL+"/search/query", query, limit, nil)
 }
 
 // SearchLoopComponents searches Microsoft Loop components that are visible to
 // Microsoft Search. Loop components are current .loop files or legacy .fluid
 // files stored in OneDrive, SharePoint, or indexed SharePoint Embedded storage.
 func (c *Client) SearchLoopComponents(query string, limit int) ([]DriveItemSearchHit, error) {
-	return c.searchDriveItems(loopSearchQuery(query), limit, func(hit DriveItemSearchHit) bool {
+	return c.searchDriveItems(baseURL+"/search/query", loopSearchQuery(query), limit, func(hit DriveItemSearchHit) bool {
 		return isLoopComponentName(hit.Resource.Name)
 	})
 }
 
-func (c *Client) searchDriveItems(query string, limit int, accept func(DriveItemSearchHit) bool) ([]DriveItemSearchHit, error) {
+func (c *Client) searchDriveItems(endpoint, query string, limit int, accept func(DriveItemSearchHit) bool) ([]DriveItemSearchHit, error) {
 	query = strings.TrimSpace(query)
 	if query == "" {
 		return nil, fmt.Errorf("search query is required")
@@ -226,7 +226,7 @@ func (c *Client) searchDriveItems(query string, limit int, accept func(DriveItem
 		if err != nil {
 			return nil, fmt.Errorf("failed to encode search request: %w", err)
 		}
-		resp, err := c.doRequest("POST", baseURL+"/search/query", body)
+		resp, err := c.doRequest("POST", endpoint, body)
 		if err != nil {
 			return nil, err
 		}
