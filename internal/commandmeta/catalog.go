@@ -67,7 +67,7 @@ var policies = map[string]Policy{
 	"mail list":             {Mutability: Read, Effects: []string{"microsoft_graph_read"}},
 	"mail search":           {Mutability: Read, Effects: []string{"microsoft_graph_read", "microsoft_search"}},
 	"mail get":              {Mutability: Read, Effects: []string{"microsoft_graph_read"}},
-	"mail attachments":      {Mutability: Read, Effects: []string{"microsoft_graph_read"}},
+	"mail attachments":      {Mutability: Read, Effects: []string{"microsoft_graph_read", "local_write"}},
 	"mail send":             {Mutability: Write, DryRunSupported: true, Effects: []string{"microsoft_graph_write", "external_communication"}},
 	"mail draft":            {Mutability: Write, DryRunSupported: true, Effects: []string{"microsoft_graph_write"}},
 	"mail mark-read":        {Mutability: Write, DryRunSupported: true, Effects: []string{"microsoft_graph_write"}},

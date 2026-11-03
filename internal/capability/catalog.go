@@ -37,7 +37,7 @@ var commands = []Command{
 	{Name: "mail list", Description: "List messages", Scopes: []string{"Mail.Read"}},
 	{Name: "mail search", Description: "Search the signed-in user's Exchange Online mailbox", Scopes: []string{"Mail.Read"}},
 	{Name: "mail get", Description: "Read a message", Scopes: []string{"Mail.Read"}},
-	{Name: "mail attachments", Description: "List message attachments", Scopes: []string{"Mail.Read"}},
+	{Name: "mail attachments", Description: "List and download message attachments", Scopes: []string{"Mail.Read"}},
 	{Name: "mail mark-read", Description: "Mark messages as read", Scopes: []string{"Mail.ReadWrite"}},
 	{Name: "mail archive", Description: "Archive messages", Scopes: []string{"Mail.ReadWrite"}},
 	{Name: "mail delete", Description: "Move messages to Deleted Items", Scopes: []string{"Mail.ReadWrite"}},

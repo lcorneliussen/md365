@@ -121,6 +121,8 @@ md365 mail search "project atlas" --account work --top-results
 md365 mail list --account work --from-addr colleague@company.com --since 2026-05-01
 md365 mail get --account work --id <message-id>
 md365 mail attachments --account work --id <message-id>
+md365 mail attachments --account work --id <message-id> --download ./attachments
+md365 mail attachments --account work --id <message-id> --download ./attachments --name report.pdf
 
 md365 teams list --account work
 md365 teams channels --account work --team-id <team-id>
@@ -194,7 +196,8 @@ Global execution policies are enforced before configuration, authentication, or
 command execution:
 
 - `--read-only` blocks every command catalogued as writing Microsoft Graph or
-  local synchronized state;
+  local synchronized state; downloading attachments (`mail attachments --download`)
+  is allowed because it performs only local writes, not mailbox mutations;
 - `--no-input` prevents browser, TUI, and Microsoft Entra authentication waits;
 - `--dry-run` validates supported Outlook mail and calendar mutations and emits
   a redacted Graph operation preview without performing remote or local writes.

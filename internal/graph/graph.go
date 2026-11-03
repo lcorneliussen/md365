@@ -139,6 +139,7 @@ type Attachment struct {
 	ContentType string `json:"contentType,omitempty"`
 	Size        int    `json:"size,omitempty"`
 	IsInline    bool   `json:"isInline,omitempty"`
+	ODataType   string `json:"@odata.type,omitempty"`
 }
 
 // ListMessagesOptions controls a mailbox query
@@ -521,6 +522,21 @@ func (c *Client) ListAttachments(messageID string) ([]Attachment, error) {
 	}
 
 	return all, nil
+}
+
+// DownloadAttachment retrieves the raw bytes of a file attachment.
+// Returns the content bytes or an error if the attachment is not a fileAttachment
+// or the download fails.
+func (c *Client) DownloadAttachment(messageID, attachmentID string) ([]byte, error) {
+	reqURL := fmt.Sprintf("%s/me/messages/%s/attachments/%s/$value",
+		baseURL, url.PathEscape(messageID), url.PathEscape(attachmentID))
+
+	resp, err := c.doRequestHeaders("GET", reqURL, nil, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return resp, nil
 }
 
 // UpdateMessage patches a message (e.g. mark as read)
