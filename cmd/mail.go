@@ -11,22 +11,25 @@ import (
 )
 
 var (
-	mailAccount     string
-	mailTo          string
-	mailSubject     string
-	mailBody        string
-	mailForce       bool
-	mailSearch      string
-	mailFromAddr    string
-	mailSince       string
-	mailUntil       string
-	mailFolder      string
-	mailLimit       int
-	mailSearchLimit int
-	mailTopResults  bool
-	mailUnread      bool
-	mailID          string
-	mailIDs         []string
+	mailAccount      string
+	mailTo           string
+	mailSubject      string
+	mailBody         string
+	mailForce        bool
+	mailSearch       string
+	mailFromAddr     string
+	mailSince        string
+	mailUntil        string
+	mailFolder       string
+	mailLimit        int
+	mailSearchLimit  int
+	mailTopResults   bool
+	mailUnread       bool
+	mailID           string
+	mailIDs          []string
+	mailDownloadDir  string
+	mailAttachmentID string
+	mailAttachName   string
 )
 
 // mailCmd represents the mail command
@@ -147,12 +150,38 @@ var mailGetCmd = &cobra.Command{
 var mailAttachmentsCmd = &cobra.Command{
 	Use:   "attachments",
 	Short: "List email attachments",
-	Long:  `List attachment metadata for a single email via Microsoft Graph API.`,
+	Long: `List attachment metadata for a single email via Microsoft Graph API.
+When --download is specified, downloads all file attachments to the given directory.
+Use --attachment-id or --name to download a specific attachment.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if mailAccount == "" || mailID == "" {
 			return usageError("--account and --id are required")
 		}
 
+		// If --download is specified, download attachments
+		if mailDownloadDir != "" {
+			downloaded, err := mail.DownloadAttachments(cfg, mailAccount, mailID, mail.DownloadAttachmentsOptions{
+				DownloadDir:  mailDownloadDir,
+				AttachmentID: mailAttachmentID,
+				Name:         mailAttachName,
+			})
+			if err != nil {
+				return err
+			}
+
+			if writer.IsHuman() {
+				printDownloadedAttachments(cmd, downloaded)
+				return nil
+			}
+
+			return writeOK(downloaded,
+				output.WithSummary(fmt.Sprintf("%d attachments downloaded", countDownloaded(downloaded))),
+				output.WithMeta("source", "graph"),
+				output.WithMeta("operation", "download"),
+			)
+		}
+
+		// Otherwise, just list attachment metadata
 		attachments, err := mail.ListAttachments(cfg, mailAccount, mailID)
 		if err != nil {
 			return err
@@ -340,6 +369,9 @@ func init() {
 
 	mailAttachmentsCmd.Flags().StringVar(&mailAccount, "account", "", "Account (required)")
 	mailAttachmentsCmd.Flags().StringVar(&mailID, "id", "", "Message ID (required)")
+	mailAttachmentsCmd.Flags().StringVar(&mailDownloadDir, "download", "", "Download attachments to this directory")
+	mailAttachmentsCmd.Flags().StringVar(&mailAttachmentID, "attachment-id", "", "Download only this attachment (by ID)")
+	mailAttachmentsCmd.Flags().StringVar(&mailAttachName, "name", "", "Download only attachments with this filename")
 
 	mailSendCmd.Flags().StringVar(&mailAccount, "account", "", "Account (required)")
 	mailSendCmd.Flags().StringVar(&mailTo, "to", "", "Recipient email (required)")
@@ -459,11 +491,50 @@ func printAttachments(cmd *cobra.Command, attachments []mail.AttachmentInfo) {
 		if attachment.IsInline {
 			inline = " inline"
 		}
-		fmt.Fprintf(cmd.OutOrStdout(), "%s  %s  %d bytes%s\n", attachment.ID, attachment.Name, attachment.Size, inline)
+		attachType := ""
+		if attachment.ODataType != "" {
+			if strings.Contains(attachment.ODataType, "fileAttachment") {
+				attachType = " [file]"
+			} else if strings.Contains(attachment.ODataType, "itemAttachment") {
+				attachType = " [item]"
+			} else if strings.Contains(attachment.ODataType, "referenceAttachment") {
+				attachType = " [reference]"
+			}
+		}
+		fmt.Fprintf(cmd.OutOrStdout(), "%s  %s  %d bytes%s%s\n", attachment.ID, attachment.Name, attachment.Size, inline, attachType)
 	}
 	if len(attachments) == 0 {
 		fmt.Fprintln(cmd.OutOrStdout(), "No attachments found")
 	}
+}
+
+func printDownloadedAttachments(cmd *cobra.Command, downloaded []mail.DownloadedAttachment) {
+	downloadedCount := 0
+	skippedCount := 0
+	for _, att := range downloaded {
+		if att.Skipped {
+			fmt.Fprintf(cmd.OutOrStdout(), "Skipped: %s (%s)\n", att.Name, att.SkipReason)
+			skippedCount++
+		} else {
+			fmt.Fprintf(cmd.OutOrStdout(), "Downloaded: %s -> %s (%d bytes)\n", att.Name, att.Path, att.Size)
+			downloadedCount++
+		}
+	}
+	if downloadedCount == 0 && skippedCount == 0 {
+		fmt.Fprintln(cmd.OutOrStdout(), "No attachments found")
+	} else {
+		fmt.Fprintf(cmd.OutOrStdout(), "\nTotal: %d downloaded, %d skipped\n", downloadedCount, skippedCount)
+	}
+}
+
+func countDownloaded(downloaded []mail.DownloadedAttachment) int {
+	count := 0
+	for _, att := range downloaded {
+		if !att.Skipped {
+			count++
+		}
+	}
+	return count
 }
 
 func mailBreadcrumbs(msg mail.MessageInfo) []output.Breadcrumb {

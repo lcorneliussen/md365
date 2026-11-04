@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
@@ -48,6 +50,7 @@ type AttachmentInfo struct {
 	ContentType string `json:"content_type,omitempty"`
 	Size        int    `json:"size,omitempty"`
 	IsInline    bool   `json:"is_inline,omitempty"`
+	ODataType   string `json:"type,omitempty"`
 }
 
 type SearchResultInfo struct {
@@ -189,9 +192,152 @@ func ListAttachments(cfg *config.Config, account, id string) ([]AttachmentInfo, 
 			ContentType: attachment.ContentType,
 			Size:        attachment.Size,
 			IsInline:    attachment.IsInline,
+			ODataType:   attachment.ODataType,
 		})
 	}
 	return results, nil
+}
+
+// DownloadedAttachment represents the result of downloading one attachment.
+type DownloadedAttachment struct {
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	Path        string `json:"path"`
+	Size        int    `json:"size"`
+	ContentType string `json:"content_type,omitempty"`
+	Skipped     bool   `json:"skipped,omitempty"`
+	SkipReason  string `json:"skip_reason,omitempty"`
+}
+
+// DownloadAttachmentsOptions controls which attachments to download and where.
+type DownloadAttachmentsOptions struct {
+	DownloadDir  string
+	AttachmentID string
+	Name         string
+}
+
+// DownloadAttachments downloads file attachments from a message to a directory.
+// Non-file attachments (itemAttachment, referenceAttachment) are skipped.
+// If AttachmentID or Name are specified, only matching attachments are downloaded.
+func DownloadAttachments(cfg *config.Config, account, messageID string, opts DownloadAttachmentsOptions) ([]DownloadedAttachment, error) {
+	if account == "" || messageID == "" {
+		return nil, fmt.Errorf("--account and --id are required")
+	}
+	if opts.DownloadDir == "" {
+		return nil, fmt.Errorf("--download is required")
+	}
+
+	// Create download directory if it doesn't exist
+	if err := os.MkdirAll(opts.DownloadDir, 0755); err != nil {
+		return nil, fmt.Errorf("failed to create download directory: %w", err)
+	}
+
+	token, err := auth.GetAccessToken(cfg, account)
+	if err != nil {
+		return nil, err
+	}
+
+	client := graph.NewClient(token)
+	attachments, err := client.ListAttachments(messageID)
+	if err != nil {
+		return nil, err
+	}
+
+	var results []DownloadedAttachment
+
+	for _, attachment := range attachments {
+		// Filter by attachment ID if specified
+		if opts.AttachmentID != "" && attachment.ID != opts.AttachmentID {
+			continue
+		}
+
+		// Filter by name if specified
+		if opts.Name != "" && attachment.Name != opts.Name {
+			continue
+		}
+
+		// Check if it's a file attachment
+		if attachment.ODataType != "" && !strings.Contains(attachment.ODataType, "fileAttachment") {
+			results = append(results, DownloadedAttachment{
+				ID:         attachment.ID,
+				Name:       attachment.Name,
+				Skipped:    true,
+				SkipReason: fmt.Sprintf("not a file attachment (type: %s)", attachment.ODataType),
+			})
+			continue
+		}
+
+		// Sanitize filename
+		sanitized := sanitizeFilename(attachment.Name)
+		if sanitized == "" {
+			sanitized = "attachment"
+		}
+
+		// Find a non-conflicting path
+		savePath := filepath.Join(opts.DownloadDir, sanitized)
+		savePath = nonConflictingPath(savePath)
+
+		// Download the attachment
+		content, err := client.DownloadAttachment(messageID, attachment.ID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to download attachment %s: %w", attachment.Name, err)
+		}
+
+		// Write to file
+		if err := os.WriteFile(savePath, content, 0644); err != nil {
+			return nil, fmt.Errorf("failed to write attachment to %s: %w", savePath, err)
+		}
+
+		results = append(results, DownloadedAttachment{
+			ID:          attachment.ID,
+			Name:        attachment.Name,
+			Path:        savePath,
+			Size:        len(content),
+			ContentType: attachment.ContentType,
+		})
+	}
+
+	return results, nil
+}
+
+// sanitizeFilename removes or replaces characters that are unsafe in filenames.
+// It prevents path traversal and removes illegal characters for most filesystems.
+func sanitizeFilename(name string) string {
+	// Replace path separators and null bytes
+	name = strings.ReplaceAll(name, "/", "_")
+	name = strings.ReplaceAll(name, "\\", "_")
+	name = strings.ReplaceAll(name, "\x00", "")
+
+	// Remove or replace other problematic characters
+	// These are illegal on Windows and/or problematic on various filesystems
+	illegalChars := regexp.MustCompile(`[<>:"|?*]`)
+	name = illegalChars.ReplaceAllString(name, "_")
+
+	// Trim leading/trailing spaces and dots (problematic on Windows)
+	name = strings.Trim(name, " .")
+
+	// If the name is empty after sanitization, return empty string
+	// (caller should provide a default)
+	return name
+}
+
+// nonConflictingPath returns a path that doesn't exist on the filesystem.
+// If the given path exists, it appends a numeric suffix before the extension.
+// Example: "file.txt" -> "file (2).txt" -> "file (3).txt"
+func nonConflictingPath(path string) string {
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		return path
+	}
+
+	ext := filepath.Ext(path)
+	base := strings.TrimSuffix(path, ext)
+
+	for i := 2; ; i++ {
+		candidate := fmt.Sprintf("%s (%d)%s", base, i, ext)
+		if _, err := os.Stat(candidate); os.IsNotExist(err) {
+			return candidate
+		}
+	}
 }
 
 func messageInfoFromGraph(account string, msg graph.Message, includeBody bool) MessageInfo {
